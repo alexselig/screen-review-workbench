@@ -96,24 +96,213 @@ h1 {
 }
 
 .screen-rail {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 12px;
-  align-content: start;
+  position: relative;
+  z-index: 5;
   border-right: 1px solid var(--ink);
+  transition: width 160ms ease;
 }
 
-.screen-rail strong {
+.screen-rail[data-mode="compact"] {
+  width: 64px;
+  padding: 16px 8px;
+}
+
+.screen-rail[data-mode="compact"][data-expanded="true"] {
+  width: 320px;
+  box-shadow: 1px 0 0 var(--ink);
+}
+
+.rail-toolbar {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.rail-mode-button,
+.rail-pin-button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.screen-rail ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.screen-rail h2 {
+  margin: 16px -24px 0;
+  padding: 12px 24px;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+}
+
+.screen-rail li button {
+  display: grid;
+  width: 100%;
+  min-height: 56px;
+  grid-template-columns: 48px minmax(0, 1fr) 12px;
+  align-items: center;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.screen-rail li button[aria-current="page"] {
   color: var(--bauhaus-blue);
+  box-shadow: inset 4px 0 var(--bauhaus-blue);
+}
+
+.screen-number {
   font-family: var(--font-display);
-  font-size: 24px;
+  font-size: 18px;
+  text-align: center;
+}
+
+.screen-name {
+  font-weight: 700;
+}
+
+.feedback-marker {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.screen-rail[data-mode="compact"]:not([data-expanded="true"]) h2,
+.screen-rail[data-mode="compact"]:not([data-expanded="true"]) .screen-name,
+.screen-rail[data-mode="compact"]:not([data-expanded="true"]) .feedback-marker,
+.screen-rail[data-mode="compact"]:not([data-expanded="true"]) .rail-pin-button {
+  display: none;
+}
+
+.screen-rail[data-mode="compact"]:not([data-expanded="true"]) li button {
+  grid-template-columns: 1fr;
 }
 
 .review-canvas {
+  position: relative;
   display: grid;
   min-width: 0;
   place-items: center;
   padding: 32px;
+}
+
+.canvas-fullscreen-button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 700;
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 160ms ease;
+}
+
+.review-canvas:hover .canvas-fullscreen-button,
+.canvas-fullscreen-button:focus-visible {
+  opacity: 1;
+}
+
+.fullscreen-review {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  background: var(--surface);
+}
+
+.fullscreen-canvas,
+.fullscreen-canvas > .review-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.fullscreen-exit {
+  position: fixed;
+  z-index: 30;
+  top: 16px;
+  right: 16px;
+  min-height: 44px;
+  border: 1px solid var(--ink);
+  background: var(--surface);
+  font-weight: 700;
+}
+
+.fullscreen-edge {
+  position: fixed;
+  z-index: 29;
+  top: 0;
+  bottom: 0;
+  display: flex;
+}
+
+.fullscreen-edge-navigation {
+  left: 0;
+}
+
+.fullscreen-edge-feedback {
+  right: 0;
+  flex-direction: row-reverse;
+}
+
+.fullscreen-edge-handle {
+  width: 28px;
+  border: 0;
+  border-right: 1px solid var(--ink);
+  background: var(--bauhaus-blue);
+  color: var(--on-blue);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  writing-mode: vertical-rl;
+}
+
+.fullscreen-edge-feedback .fullscreen-edge-handle {
+  border-right: 0;
+  border-left: 1px solid var(--ink);
+  background: var(--bauhaus-orange);
+  color: var(--ink);
+}
+
+.fullscreen-edge-panel {
+  width: 0;
+  overflow: hidden;
+  background: var(--surface-alt);
+  transition: width 160ms ease;
+}
+
+.fullscreen-edge[data-open="true"] .fullscreen-edge-panel {
+  width: min(360px, calc(100vw - 56px));
+  border-right: 1px solid var(--ink);
+}
+
+.fullscreen-edge-feedback[data-open="true"] .fullscreen-edge-panel {
+  border-right: 0;
+  border-left: 1px solid var(--ink);
+}
+
+.fullscreen-edge-panel .screen-rail,
+.fullscreen-edge-panel .feedback-panel {
+  width: 100%;
+  height: 100%;
+  border: 0;
 }
 
 .empty-canvas {

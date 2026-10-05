@@ -5,7 +5,7 @@ import {
   rename,
   type FileHandle,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 import { z } from "zod";
 
@@ -283,8 +283,24 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
   };
 }
 
+export type FeedbackStorage = ReturnType<typeof createFeedbackStorage>;
+
+// One instance per data root, so every caller in this process shares a single
+// mutation queue and the shared temp file can never be written concurrently.
+const sharedStorages = new Map<string, FeedbackStorage>();
+
+export function sharedFeedbackStorage(dataRoot: string): FeedbackStorage {
+  const key = resolve(dataRoot);
+  let storage = sharedStorages.get(key);
+  if (!storage) {
+    storage = createFeedbackStorage({ dataRoot: key });
+    sharedStorages.set(key, storage);
+  }
+  return storage;
+}
+
 export async function listFeedback(dataRoot: string, projectId: string) {
-  return createFeedbackStorage({ dataRoot }).listFeedback(projectId);
+  return sharedFeedbackStorage(dataRoot).listFeedback(projectId);
 }
 
 export async function createFeedback(
@@ -292,7 +308,7 @@ export async function createFeedback(
   projectId: string,
   input: CreateFeedbackInput,
 ) {
-  return createFeedbackStorage({ dataRoot }).createFeedback(projectId, input);
+  return sharedFeedbackStorage(dataRoot).createFeedback(projectId, input);
 }
 
 export async function updateFeedback(
@@ -301,11 +317,7 @@ export async function updateFeedback(
   id: string,
   input: UpdateFeedbackInput,
 ) {
-  return createFeedbackStorage({ dataRoot }).updateFeedback(
-    projectId,
-    id,
-    input,
-  );
+  return sharedFeedbackStorage(dataRoot).updateFeedback(projectId, id, input);
 }
 
 export async function deleteFeedback(
@@ -314,7 +326,7 @@ export async function deleteFeedback(
   id: string,
   expectedUpdatedAt: string,
 ) {
-  return createFeedbackStorage({ dataRoot }).deleteFeedback(
+  return sharedFeedbackStorage(dataRoot).deleteFeedback(
     projectId,
     id,
     expectedUpdatedAt,

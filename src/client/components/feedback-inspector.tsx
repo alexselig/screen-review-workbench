@@ -149,6 +149,7 @@ export function FeedbackInspector({
   onUpdate,
   onExport,
   onVisibleFeedbackChange,
+  ready = true,
 }: {
   projectId: string;
   screens: ReviewScreen[];
@@ -168,6 +169,7 @@ export function FeedbackInspector({
   ) => Promise<FeedbackRecord>;
   onExport?: (format: "json" | "markdown", contents: string) => void;
   onVisibleFeedbackChange?: (feedback: FeedbackRecord[]) => void;
+  ready?: boolean;
 }) {
   const initialRecoveries = useMemo(
     () => readRecoveryEntries(projectId),
@@ -454,7 +456,12 @@ export function FeedbackInspector({
           <span className="eyebrow">Feedback</span>
           <strong>{visibleFeedback.length} visible</strong>
         </div>
-        <button className="feedback-add-button" onClick={onStartPin} type="button">
+        <button
+          className="feedback-add-button"
+          disabled={!ready}
+          onClick={onStartPin}
+          type="button"
+        >
           Add feedback
         </button>
       </header>

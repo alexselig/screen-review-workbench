@@ -10,6 +10,11 @@
   --bauhaus-orange: #f26522;
   --bauhaus-blue: #2f5bea;
   --on-blue: #ffffff;
+  --blue-soft: #edf1ff;
+  --warning: #9a4b18;
+  --warning-soft: #fff0e5;
+  --destructive: #b42318;
+  --destructive-soft: #fff0ee;
   --font-display: "League Spartan", Futura, "Avenir Next", system-ui, sans-serif;
   --font-sans: "Figtree", "Avenir Next", system-ui, sans-serif;
 }
@@ -541,4 +546,32 @@ h1 {
     animation: none !important;
     transition: none !important;
   }
+}
+
+.workbench-banner {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0;
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-alt);
+  color: var(--ink);
+}
+
+.workbench-banner-error {
+  border-bottom-color: var(--destructive);
+  background: var(--destructive-soft);
+  color: var(--destructive);
+}
+
+.workbench-banner button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
 }

@@ -1,59 +1,136 @@
 import {
-  act,
   cleanup,
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { App } from "../src/client/app";
+import { installFakeFeedbackApi } from "./helpers/fake-feedback-api";
 
-afterEach(() => {
-  cleanup();
-  localStorage.clear();
-  vi.useRealTimers();
+let api: Awaited<ReturnType<typeof installFakeFeedbackApi>>;
+
+beforeEach(async () => {
+  api = await installFakeFeedbackApi();
 });
 
-describe("feedback workflow integration", () => {
-  it("places a normalized pin, persists it, and recovers it after reload", async () => {
-    vi.useFakeTimers();
-    const firstRender = render(<App />);
-    fireEvent.click(screen.getByRole("button", { name: "Add feedback" }));
-    const canvas = screen.getByTestId("canvas");
-    Object.defineProperty(canvas, "getBoundingClientRect", {
-      configurable: true,
-      value: () => ({
-        left: 100,
-        top: 50,
-        width: 800,
-        height: 600,
-        right: 900,
-        bottom: 650,
-        x: 100,
-        y: 50,
-        toJSON: () => ({}),
-      }),
-    });
-    fireEvent.click(canvas, { clientX: 500, clientY: 350 });
-    fireEvent.change(screen.getByRole("textbox", { name: "Feedback note" }), {
-      target: { value: "Keep this action above the fold." },
-    });
-    await act(async () => vi.advanceTimersByTime(500));
+afterEach(async () => {
+  cleanup();
+  localStorage.clear();
+  await api.dispose();
+});
 
-    const pin = screen.getByTestId("feedback-pin");
+function fakeRect(element: HTMLElement) {
+  Object.defineProperty(element, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({
+      left: 100,
+      top: 50,
+      width: 800,
+      height: 600,
+      right: 900,
+      bottom: 650,
+      x: 100,
+      y: 50,
+      toJSON: () => ({}),
+    }),
+  });
+}
+
+async function addFeedbackAtCentre(note: string) {
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Add feedback" })).toBeEnabled(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Add feedback" }));
+  const frame = screen.getByTestId("canvas");
+  fakeRect(frame);
+  fireEvent.click(frame, { clientX: 500, clientY: 350 });
+  fireEvent.change(screen.getByRole("textbox", { name: "Feedback note" }), {
+    target: { value: note },
+  });
+}
+
+describe("feedback workflow integration", () => {
+  it("places a normalized pin, saves it to disk, and reloads it from the server", async () => {
+    const firstRender = render(<App />);
+    await addFeedbackAtCentre("Keep this action above the fold.");
+
+    const pin = await screen.findByTestId("feedback-pin", {}, { timeout: 2000 });
     expect(pin).toHaveStyle({ left: "50%", top: "50%" });
-    expect(localStorage.getItem("screen-review-workbench.feedback.v1:example")).toContain(
-      "Keep this action above the fold.",
-    );
+    const onDisk = await readFile(join(api.root, "example", "feedback.json"), "utf8");
+    expect(onDisk).toContain("Keep this action above the fold.");
+    expect(localStorage.getItem("screen-review-workbench.feedback.v1:example")).toBeNull();
 
     firstRender.unmount();
     render(<App />);
 
-    expect(screen.getByText("Keep this action above the fold.")).toBeInTheDocument();
-    expect(screen.getByTestId("feedback-pin")).toHaveStyle({
+    expect(
+      await screen.findByText("Keep this action above the fold."),
+    ).toBeInTheDocument();
+    expect(await screen.findByTestId("feedback-pin")).toHaveStyle({
       left: "50%",
       top: "50%",
     });
+  });
+
+  it("shows a load error with retry instead of an empty review", async () => {
+    api.failNext(500, "feedback.json contains invalid JSON; restore or repair it.");
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/invalid JSON/);
+    expect(screen.getByRole("button", { name: "Add feedback" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Add feedback" })).toBeEnabled(),
+    );
+  });
+});
+
+describe("legacy browser feedback migration", () => {
+  const legacy = {
+    id: "33333333-3333-4333-8333-333333333333",
+    projectId: "example",
+    screenId: "landing",
+    version: "live",
+    x: 0.25,
+    y: 0.25,
+    note: "Saved before the server existed.",
+    category: "CONTENT",
+    priority: "IMPORTANT",
+    status: "OPEN",
+    createdAt: "2026-10-05T19:00:00.000Z",
+    updatedAt: "2026-10-05T19:00:00.000Z",
+  };
+  const key = "screen-review-workbench.feedback.v1:example";
+
+  it("moves browser-only feedback to disk and then clears the browser copy", async () => {
+    localStorage.setItem(key, JSON.stringify([legacy]));
+    render(<App />);
+
+    expect(await screen.findByText(legacy.note)).toBeInTheDocument();
+    expect(await api.storage.listFeedback("example")).toEqual([legacy]);
+    expect(localStorage.getItem(key)).toBeNull();
+  });
+
+  it("leaves unreadable browser feedback untouched and says so", async () => {
+    localStorage.setItem(key, "{broken");
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/left untouched/);
+    expect(localStorage.getItem(key)).toBe("{broken");
+  });
+
+  it("keeps the browser copy when some records cannot be imported", async () => {
+    localStorage.setItem(key, JSON.stringify([legacy, { id: "bad" }]));
+    render(<App />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/1 older/);
+    expect(localStorage.getItem(key)).not.toBeNull();
+    expect(await api.storage.listFeedback("example")).toHaveLength(1);
   });
 });

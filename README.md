@@ -27,12 +27,35 @@ The server binds to `http://127.0.0.1:4173`.
 - Atomic file storage with serialized mutations, conflict checks, and restart
   recovery.
 
-The example UI currently persists through a browser `localStorage` adapter.
-The next integration step is to expose `src/server/storage.ts` through
-loopback-only CRUD/export routes in `src/server/index.ts`, enforce the existing
-mutation Origin policy on those routes, and replace the callbacks in
-`src/client/app.tsx`. Project registrations, captures, feedback, and injected
-headers must remain outside Git.
+### Where feedback is stored
+
+Feedback is written to disk by the server, never only to the browser:
+
+```
+~/.screen-review-workbench/feedback/<projectId>/feedback.json
+```
+
+Set `SCREEN_REVIEW_DATA` to use another folder (useful for testing). The
+server prints the folder it is using on startup.
+
+| Route | Purpose |
+|---|---|
+| `GET /api/projects/:projectId/feedback` | List feedback |
+| `POST /api/projects/:projectId/feedback` | Create (idempotent on `clientMutationId`) |
+| `PATCH /api/projects/:projectId/feedback/:id` | Update; `409` with the current record if `expectedUpdatedAt` is stale |
+| `DELETE /api/projects/:projectId/feedback/:id` | Delete the expected revision |
+| `POST /api/projects/:projectId/feedback/import` | Merge records saved elsewhere, keeping ids |
+
+Every mutation must carry a loopback `Origin` header and a JSON body (1 MB
+max); requests with a non-loopback `Host` header are refused. If
+`feedback.json` cannot be parsed, the API returns `500` and the UI shows the
+error with a Retry button — it never treats a damaged file as empty or
+overwrites it.
+
+Feedback saved by earlier builds in browser `localStorage` is imported on first
+load. The browser copy is removed only after every record is accepted; anything
+unreadable is left in place and reported. Project registrations, captures,
+feedback, and injected headers must remain outside Git.
 
 ## Register Ship a Skill locally
 

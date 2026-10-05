@@ -8,19 +8,22 @@ import { FullscreenReview } from "./components/fullscreen-review";
 import { ScreenRail, type RailMode } from "./components/screen-rail";
 import { createPinNumbers } from "../shared/export";
 import {
-  createFeedbackInputSchema,
-  feedbackRecordSchema,
   normalizePinCoordinates,
-  updateFeedbackInputSchema,
   type CreateFeedbackInput,
   type FeedbackRecord,
   type UpdateFeedbackInput,
 } from "../shared/feedback";
 import type { ReviewScreen } from "../shared/manifest";
+import {
+  FeedbackApiError,
+  fetchFeedback,
+  migrateLegacyFeedback,
+  patchFeedback,
+  postFeedback,
+} from "./feedback-api";
 
 const projectId = "example";
 const version = "live";
-const feedbackStorageKey = `screen-review-workbench.feedback.v1:${projectId}`;
 
 const screens: ReviewScreen[] = [
   { id: "landing", ordinal: 1, title: "Public landing", group: "Access", viewport: { width: 1440, height: 1000 } },
@@ -28,30 +31,19 @@ const screens: ReviewScreen[] = [
   { id: "dashboard", ordinal: 3, title: "Populated dashboard", group: "Portfolio", viewport: { width: 1440, height: 1000 } },
 ];
 
-function loadFeedback(): FeedbackRecord[] {
-  if (typeof window === "undefined") return [];
-  const raw = window.localStorage.getItem(feedbackStorageKey);
-  if (!raw) return [];
-  try {
-    return feedbackRecordSchema.array().parse(JSON.parse(raw));
-  } catch {
-    return [];
-  }
-}
-
-function nextUpdatedAt(previous: string) {
-  return new Date(
-    Math.max(Date.now(), new Date(previous).getTime() + 1),
-  ).toISOString();
-}
+type LoadState =
+  | { kind: "loading" }
+  | { kind: "ready" }
+  | { kind: "error"; message: string };
 
 export function App() {
   const [railMode, setRailMode] = useState<RailMode>("wide");
   const [selectedId, setSelectedId] = useState(screens[0].id);
   const [fullscreen, setFullscreen] = useState(false);
-  const [feedbackRecords, setFeedbackRecords] =
-    useState<FeedbackRecord[]>(loadFeedback);
-  const feedbackRecordsRef = useRef(feedbackRecords);
+  const [feedbackRecords, setFeedbackRecords] = useState<FeedbackRecord[]>([]);
+  const [loadState, setLoadState] = useState<LoadState>({ kind: "loading" });
+  const [notice, setNotice] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [visibleFeedback, setVisibleFeedback] =
     useState<FeedbackRecord[]>(feedbackRecords);
   const [addingFeedback, setAddingFeedback] = useState(false);
@@ -69,6 +61,32 @@ export function App() {
     () => createPinNumbers(feedbackRecords),
     [feedbackRecords],
   );
+  const ready = loadState.kind === "ready";
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoadState({ kind: "loading" });
+    (async () => {
+      try {
+        const warning = await migrateLegacyFeedback(projectId);
+        const records = await fetchFeedback(projectId);
+        if (cancelled) return;
+        setFeedbackRecords(records);
+        setNotice(warning);
+        setLoadState({ kind: "ready" });
+      } catch (error) {
+        if (cancelled) return;
+        setLoadState({
+          kind: "error",
+          message:
+            error instanceof Error ? error.message : "Feedback could not load.",
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAttempt]);
 
   useEffect(() => {
     if (!draftPin) return;
@@ -77,61 +95,45 @@ export function App() {
       ?.focus();
   }, [draftPin]);
 
-  const persistFeedback = useCallback((records: FeedbackRecord[]) => {
-    feedbackRecordsRef.current = records;
-    window.localStorage.setItem(feedbackStorageKey, JSON.stringify(records));
-    setFeedbackRecords(records);
+  const upsertRecord = useCallback((record: FeedbackRecord) => {
+    setFeedbackRecords((current) =>
+      current.some((item) => item.id === record.id)
+        ? current.map((item) => (item.id === record.id ? record : item))
+        : [...current, record],
+    );
   }, []);
 
+  const withConflictRefresh = useCallback(
+    async <T,>(operation: () => Promise<T>) => {
+      try {
+        return await operation();
+      } catch (error) {
+        if (error instanceof FeedbackApiError && error.current) {
+          upsertRecord(error.current);
+        }
+        throw error;
+      }
+    },
+    [upsertRecord],
+  );
+
   const createFeedback = useCallback(
-    async (rawInput: CreateFeedbackInput) => {
-      const input = createFeedbackInputSchema.parse(rawInput);
-      const currentFeedback = feedbackRecordsRef.current;
-      const existing = currentFeedback.find(
-        (item) => item.id === input.clientMutationId,
-      );
-      if (existing) return existing;
-      const timestamp = new Date().toISOString();
-      const created = feedbackRecordSchema.parse({
-        id: input.clientMutationId,
-        projectId,
-        screenId: input.screenId,
-        version: input.version,
-        x: input.x,
-        y: input.y,
-        note: input.note,
-        category: input.category,
-        priority: input.priority,
-        status: input.status,
-        createdAt: timestamp,
-        updatedAt: timestamp,
-      });
-      persistFeedback([...currentFeedback, created]);
+    async (input: CreateFeedbackInput) => {
+      const created = await postFeedback(projectId, input);
+      upsertRecord(created);
       return created;
     },
-    [persistFeedback],
+    [upsertRecord],
   );
 
   const updateFeedback = useCallback(
-    async (id: string, rawInput: UpdateFeedbackInput) => {
-      const input = updateFeedbackInputSchema.parse(rawInput);
-      const currentFeedback = feedbackRecordsRef.current;
-      const current = currentFeedback.find((item) => item.id === id);
-      if (!current) throw new Error(`Feedback not found: ${id}`);
-      if (current.updatedAt !== input.expectedUpdatedAt) {
-        throw new Error("Feedback changed after it was loaded.");
-      }
-      const updated = feedbackRecordSchema.parse({
-        ...current,
-        ...input.patch,
-        updatedAt: nextUpdatedAt(current.updatedAt),
-      });
-      persistFeedback(
-        currentFeedback.map((item) => (item.id === id ? updated : item)),
-      );
-      return updated;
-    },
-    [persistFeedback],
+    (id: string, input: UpdateFeedbackInput) =>
+      withConflictRefresh(async () => {
+        const updated = await patchFeedback(projectId, id, input);
+        upsertRecord(updated);
+        return updated;
+      }),
+    [upsertRecord, withConflictRefresh],
   );
 
   const selectScreen = useCallback((id: string) => {
@@ -159,6 +161,7 @@ export function App() {
         setDraftPin(null);
       }}
       onCreate={createFeedback}
+      ready={ready}
       onRecoverDraft={(pin) => {
         setAddingFeedback(true);
         setDraftPin(pin);
@@ -186,6 +189,7 @@ export function App() {
       onClick={(event) => {
         if (
           !addingFeedback ||
+          !ready ||
           (event.target instanceof HTMLElement &&
             event.target.closest("button"))
         ) {
@@ -273,6 +277,24 @@ export function App() {
         </div>
         <span className="status-pill">Local</span>
       </header>
+      {loadState.kind === "loading" ? (
+        <p className="workbench-banner" role="status">
+          Loading feedback…
+        </p>
+      ) : null}
+      {loadState.kind === "error" ? (
+        <div className="workbench-banner workbench-banner-error" role="alert">
+          <span>Feedback could not load: {loadState.message}</span>
+          <button onClick={() => setLoadAttempt((n) => n + 1)} type="button">
+            Retry
+          </button>
+        </div>
+      ) : null}
+      {notice ? (
+        <p className="workbench-banner workbench-banner-error" role="alert">
+          {notice}
+        </p>
+      ) : null}
       <section
         className="workbench-grid"
         data-rail-mode={railMode}

@@ -275,11 +275,46 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
     });
   }
 
+  // Merges records saved elsewhere (the old browser adapter) without touching
+  // existing records. Invalid records are reported, never dropped silently.
+  function importFeedback(
+    projectId: string,
+    rawRecords: unknown,
+  ): Promise<{ imported: number; skipped: number; invalid: number }> {
+    return serializeMutation(projectId, async () => {
+      z.array(z.unknown()).parse(rawRecords);
+      const records = rawRecords as unknown[];
+      const feedback = await read(projectId);
+      const ids = new Set(feedback.map((item) => item.id));
+      const additions: FeedbackRecord[] = [];
+      let skipped = 0;
+      let invalid = 0;
+      for (const raw of records) {
+        const parsed = feedbackRecordSchema.safeParse(
+          typeof raw === "object" && raw !== null ? { ...raw, projectId } : raw,
+        );
+        if (!parsed.success) {
+          invalid += 1;
+        } else if (ids.has(parsed.data.id)) {
+          skipped += 1;
+        } else {
+          ids.add(parsed.data.id);
+          additions.push(parsed.data);
+        }
+      }
+      if (additions.length > 0) {
+        await write(projectId, [...feedback, ...additions]);
+      }
+      return { imported: additions.length, skipped, invalid };
+    });
+  }
+
   return {
     listFeedback,
     createFeedback,
     updateFeedback,
     deleteFeedback,
+    importFeedback,
   };
 }
 

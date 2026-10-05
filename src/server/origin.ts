@@ -9,9 +9,19 @@ export function assertLoopbackHost(host: string) {
 
 export function assertMutationOrigin(
   origin: string | undefined,
-  expectedOrigin: string,
+  expectedOrigin: string | readonly string[],
 ) {
-  if (origin !== expectedOrigin) {
+  const allowed = typeof expectedOrigin === "string" ? [expectedOrigin] : expectedOrigin;
+  if (!origin || !allowed.includes(origin)) {
     throw new Error("Mutation origin does not match the workbench origin.");
   }
+}
+
+export function loopbackOrigins(port: number) {
+  return [`http://${LOOPBACK_HOST}:${port}`, `http://localhost:${port}`];
+}
+
+// Rejects DNS-rebinding requests whose Host header names a non-loopback site.
+export function isLoopbackHostHeader(host: string | undefined, port: number) {
+  return host === `${LOOPBACK_HOST}:${port}` || host === `localhost:${port}`;
 }

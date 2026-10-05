@@ -6,3 +6,4 @@ coverage/
 projects/local/
 playwright-report/
 test-results/
+tests/.feedback-data-*/

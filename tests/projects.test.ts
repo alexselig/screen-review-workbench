@@ -31,12 +31,19 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-const screenBase = { ordinal: 1, title: "Home", group: "Main", viewport: { width: 1440, height: 2400 } };
+const screenBase = {
+  ordinal: 1,
+  title: "Home",
+  group: "Main",
+  viewport: { width: 1440, height: 2400 },
+};
 
 describe("project catalog", () => {
   it("falls back to the example project when nothing is registered", async () => {
     const body = await (await fetch(`${server.origin}/api/projects`)).json();
-    expect(body.projects.map((item: { id: string }) => item.id)).toEqual(["example"]);
+    expect(body.projects.map((item: { id: string }) => item.id)).toEqual([
+      "example",
+    ]);
   });
 
   it("lists registered screens without exposing local paths and serves captures", async () => {
@@ -46,8 +53,17 @@ describe("project catalog", () => {
       proxy: { injectedHeaders: { "x-secret": { environment: "SECRET" } } },
       versions: [{ id: "v1", captureRoot: join(root, "captures", "v1") }],
       screens: [
-        { ...screenBase, id: "home", capturePath: join(root, "captures", "v1", "home.webp") },
-        { ...screenBase, id: "away", ordinal: 2, capturePath: join(root, "secret.webp") },
+        {
+          ...screenBase,
+          id: "home",
+          capturePath: join(root, "captures", "v1", "home.webp"),
+        },
+        {
+          ...screenBase,
+          id: "away",
+          ordinal: 2,
+          capturePath: join(root, "secret.webp"),
+        },
       ],
     });
     const response = await fetch(`${server.origin}/api/projects`);
@@ -56,15 +72,23 @@ describe("project catalog", () => {
     expect(text).not.toContain("x-secret");
     const { projects } = JSON.parse(text);
     expect(projects).toHaveLength(1);
-    expect(projects[0].screens.map((item: { hasCapture: boolean }) => item.hasCapture)).toEqual([true, false]);
+    expect(
+      projects[0].screens.map(
+        (item: { hasCapture: boolean }) => item.hasCapture,
+      ),
+    ).toEqual([true, false]);
 
-    const capture = await fetch(`${server.origin}/api/projects/demo/captures/v1/home`);
+    const capture = await fetch(
+      `${server.origin}/api/projects/demo/captures/v1/home`,
+    );
     expect(capture.status).toBe(200);
     expect(capture.headers.get("content-type")).toBe("image/webp");
     expect(await capture.text()).toBe("RIFFfakewebp");
 
     // A capture path outside the version's folder is never served.
-    const escaped = await fetch(`${server.origin}/api/projects/demo/captures/v1/away`);
+    const escaped = await fetch(
+      `${server.origin}/api/projects/demo/captures/v1/away`,
+    );
     expect(escaped.status).toBe(404);
   });
 
@@ -72,6 +96,8 @@ describe("project catalog", () => {
     await writeFile(join(root, "projects", "broken.json"), "{not json");
     const body = await (await fetch(`${server.origin}/api/projects`)).json();
     expect(body.problems[0]).toMatch(/^broken\.json:/);
-    expect(body.projects.map((item: { id: string }) => item.id)).toEqual(["example"]);
+    expect(body.projects.map((item: { id: string }) => item.id)).toEqual([
+      "example",
+    ]);
   });
 });

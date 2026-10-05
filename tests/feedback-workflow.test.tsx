@@ -59,11 +59,20 @@ describe("feedback workflow integration", () => {
     const firstRender = render(<App />);
     await addFeedbackAtCentre("Keep this action above the fold.");
 
-    const pin = await screen.findByTestId("feedback-pin", {}, { timeout: 2000 });
+    const pin = await screen.findByTestId(
+      "feedback-pin",
+      {},
+      { timeout: 2000 },
+    );
     expect(pin).toHaveStyle({ left: "50%", top: "50%" });
-    const onDisk = await readFile(join(api.root, "example", "feedback.json"), "utf8");
+    const onDisk = await readFile(
+      join(api.root, "example", "feedback.json"),
+      "utf8",
+    );
     expect(onDisk).toContain("Keep this action above the fold.");
-    expect(localStorage.getItem("screen-review-workbench.feedback.v1:example")).toBeNull();
+    expect(
+      localStorage.getItem("screen-review-workbench.feedback.v1:example"),
+    ).toBeNull();
 
     firstRender.unmount();
     render(<App />);
@@ -83,7 +92,9 @@ describe("feedback workflow integration", () => {
     await screen.findByTestId("feedback-pin", {}, { timeout: 2000 });
 
     const pin = screen.getByTestId("feedback-pin");
-    const cardDot = screen.getByLabelText("Pin 1", { selector: ".feedback-list .pin-dot" });
+    const cardDot = screen.getByLabelText("Pin 1", {
+      selector: ".feedback-list .pin-dot",
+    });
     expect(pin).toHaveTextContent("1");
     expect(cardDot).toHaveTextContent("1");
     expect(pin).toHaveClass("pin-dot");
@@ -94,21 +105,35 @@ describe("feedback workflow integration", () => {
     render(<App />);
     await addFeedbackAtCentre("Only once.");
     await screen.findByTestId("feedback-pin", {}, { timeout: 2000 });
-    const list = screen.getByRole("complementary", { name: "Feedback inspector" });
+    const list = screen.getByRole("complementary", {
+      name: "Feedback inspector",
+    });
     expect(list.querySelectorAll(".feedback-list > li")).toHaveLength(1);
-    expect(screen.queryByText("Only once.", { selector: ".feedback-comment strong" })).toBeNull();
-    expect(screen.getByRole("region", { name: "Feedback editor" }).closest(".feedback-list")).not.toBeNull();
+    expect(
+      screen.queryByText("Only once.", {
+        selector: ".feedback-comment strong",
+      }),
+    ).toBeNull();
+    expect(
+      screen
+        .getByRole("region", { name: "Feedback editor" })
+        .closest(".feedback-list"),
+    ).not.toBeNull();
   });
 
   it("guides an empty screen and shows a cancellable pin mode", async () => {
     render(<App />);
-    expect(await screen.findByText(/No feedback on this screen yet/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/No feedback on this screen yet/),
+    ).toBeInTheDocument();
     const add = screen.getByRole("button", { name: "Add feedback" });
     await waitFor(() => expect(add).toBeEnabled());
 
     fireEvent.click(add);
     expect(add).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByText(/Click the screen to place a pin/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Click the screen to place a pin/),
+    ).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "Escape" });
     expect(add).toHaveAttribute("aria-pressed", "false");
@@ -116,7 +141,10 @@ describe("feedback workflow integration", () => {
   });
 
   it("shows a load error with retry instead of an empty review", async () => {
-    api.failNext(500, "feedback.json contains invalid JSON; restore or repair it.");
+    api.failNext(
+      500,
+      "feedback.json contains invalid JSON; restore or repair it.",
+    );
     render(<App />);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(/invalid JSON/);
@@ -124,7 +152,9 @@ describe("feedback workflow integration", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Add feedback" })).toBeEnabled(),
+      expect(
+        screen.getByRole("button", { name: "Add feedback" }),
+      ).toBeEnabled(),
     );
   });
 });
@@ -138,8 +168,7 @@ describe("legacy browser feedback migration", () => {
     x: 0.25,
     y: 0.25,
     note: "Saved before the server existed.",
-    category: "CONTENT",
-    priority: "IMPORTANT",
+    tags: ["P1"],
     status: "OPEN",
     createdAt: "2026-10-05T19:00:00.000Z",
     updatedAt: "2026-10-05T19:00:00.000Z",
@@ -159,7 +188,9 @@ describe("legacy browser feedback migration", () => {
     localStorage.setItem(key, "{broken");
     render(<App />);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/left untouched/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /left untouched/,
+    );
     expect(localStorage.getItem(key)).toBe("{broken");
   });
 

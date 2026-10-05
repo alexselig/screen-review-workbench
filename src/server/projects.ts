@@ -13,9 +13,30 @@ export const EXAMPLE_PROJECT: PublicProject = {
   name: "Example project",
   versions: ["live"],
   screens: [
-    { id: "landing", ordinal: 1, title: "Public landing", group: "Access", viewport: { width: 1440, height: 1000 }, hasCapture: false },
-    { id: "bootstrap", ordinal: 2, title: "Session bootstrap", group: "Access", viewport: { width: 1440, height: 1000 }, hasCapture: false },
-    { id: "dashboard", ordinal: 3, title: "Populated dashboard", group: "Portfolio", viewport: { width: 1440, height: 1000 }, hasCapture: false },
+    {
+      id: "landing",
+      ordinal: 1,
+      title: "Public landing",
+      group: "Access",
+      viewport: { width: 1440, height: 1000 },
+      hasCapture: false,
+    },
+    {
+      id: "bootstrap",
+      ordinal: 2,
+      title: "Session bootstrap",
+      group: "Access",
+      viewport: { width: 1440, height: 1000 },
+      hasCapture: false,
+    },
+    {
+      id: "dashboard",
+      ordinal: 3,
+      title: "Populated dashboard",
+      group: "Portfolio",
+      viewport: { width: 1440, height: 1000 },
+      hasCapture: false,
+    },
   ],
 };
 
@@ -54,17 +75,23 @@ async function readRegistrations(projectsRoot: string) {
   const problems: string[] = [];
   let names: string[] = [];
   try {
-    names = (await readdir(projectsRoot)).filter((name) => name.endsWith(".json")).sort();
+    names = (await readdir(projectsRoot))
+      .filter((name) => name.endsWith(".json"))
+      .sort();
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   for (const name of names) {
     try {
-      const raw = JSON.parse(await readFile(path.join(projectsRoot, name), "utf8"));
+      const raw = JSON.parse(
+        await readFile(path.join(projectsRoot, name), "utf8"),
+      );
       const parsed = registrationSchema.parse(raw);
       registrations.push({ ...parsed, screens: parseScreens(parsed.screens) });
     } catch (error) {
-      problems.push(`${name}: ${error instanceof Error ? error.message.split("\n")[0] : "unreadable"}`);
+      problems.push(
+        `${name}: ${error instanceof Error ? error.message.split("\n")[0] : "unreadable"}`,
+      );
     }
   }
   return { registrations, problems };
@@ -129,7 +156,9 @@ export function createProjectCatalog({
     async capture(projectId: string, versionId: string, screenId: string) {
       const { registrations } = await readRegistrations(projectsRoot);
       const registration = registrations.find((item) => item.id === projectId);
-      const version = registration?.versions.find((item) => item.id === versionId);
+      const version = registration?.versions.find(
+        (item) => item.id === versionId,
+      );
       const screen = registration?.screens.find((item) => item.id === screenId);
       if (!version || !screen) return null;
       const file = captureFile(version, screen);

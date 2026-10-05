@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent,
+} from "react";
 
 import {
   createPinNumbers,
@@ -6,15 +13,14 @@ import {
   serializeMarkdown,
 } from "../../shared/export";
 import {
-  FEEDBACK_CATEGORIES,
-  FEEDBACK_PRIORITIES,
   FEEDBACK_STATUSES,
-  feedbackCategorySchema,
-  feedbackPrioritySchema,
+  STATUS_LABELS,
+  PRIORITY_TAGS,
+  migrateLegacyTags,
+  normalizeTags,
   normalizedCoordinateSchema,
+  priorityTag,
   type CreateFeedbackInput,
-  type FeedbackCategory,
-  type FeedbackPriority,
   type FeedbackRecord,
   type FeedbackStatus,
   type UpdateFeedbackInput,
@@ -24,17 +30,19 @@ import { z } from "zod";
 
 type Pin = { x: number; y: number };
 
-const recoveryEntrySchema = z.object({
-  kind: z.enum(["create", "update"]),
-  screenId: z.string().min(1),
-  version: z.string().min(1),
-  feedbackId: z.string().optional(),
-  x: normalizedCoordinateSchema.optional(),
-  y: normalizedCoordinateSchema.optional(),
-  note: z.string(),
-  category: feedbackCategorySchema,
-  priority: feedbackPrioritySchema,
-});
+const recoveryEntrySchema = z.preprocess(
+  migrateLegacyTags,
+  z.object({
+    kind: z.enum(["create", "update"]),
+    screenId: z.string().min(1),
+    version: z.string().min(1),
+    feedbackId: z.string().optional(),
+    x: normalizedCoordinateSchema.optional(),
+    y: normalizedCoordinateSchema.optional(),
+    note: z.string(),
+    tags: z.array(z.string()),
+  }),
+);
 
 type RecoveryEntry = z.infer<typeof recoveryEntrySchema>;
 
@@ -42,40 +50,32 @@ type RecoveryEntries = Record<string, RecoveryEntry>;
 
 type EditorState = {
   note: string;
-  category: FeedbackCategory;
-  priority: FeedbackPriority;
+  tags: string[];
   status: FeedbackStatus;
-};
-
-type Filters = {
-  category: FeedbackCategory | "";
-  priority: FeedbackPriority | "";
-  status: FeedbackStatus | "";
 };
 
 const EMPTY_EDITOR: EditorState = {
   note: "",
-  category: "LAYOUT",
-  priority: "IMPORTANT",
+  tags: ["P1"],
   status: "OPEN",
 };
 
-const EMPTY_FILTERS: Filters = {
-  category: "",
-  priority: "",
-  status: "",
-};
+// The pane is chunked by status, then by priority tag; empty chunks are hidden.
+const STATUS_SECTIONS = FEEDBACK_STATUSES.map((status) => ({
+  status,
+  label: STATUS_LABELS[status],
+}));
+
+function isPriority(tag: string) {
+  return (PRIORITY_TAGS as readonly string[]).includes(tag);
+}
+
+function sameTags(left: readonly string[], right: readonly string[]) {
+  return left.join("\0") === right.join("\0");
+}
 
 const RECOVERY_PREFIX = "screen-review-workbench.feedback-recovery.v1:";
 const NOTE_SAVE_DELAY_MS = 500;
-
-function readable(value: string) {
-  return value
-    .toLowerCase()
-    .split("_")
-    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
-    .join(" ");
-}
 
 function recoveryStorageKey(projectId: string) {
   return `${RECOVERY_PREFIX}${projectId}`;
@@ -148,7 +148,7 @@ function download(contents: string, fileName: string, type: string) {
 export function pinDotClassName(item: FeedbackRecord, selected: boolean) {
   return [
     "pin-dot",
-    `priority-${item.priority.toLowerCase()}`,
+    `priority-${(priorityTag(item.tags) ?? "none").toLowerCase()}`,
     item.status === "RESOLVED" || item.status === "WONT_FIX" ? "is-closed" : "",
     selected ? "is-selected" : "",
   ]
@@ -219,20 +219,18 @@ export function FeedbackInspector({
     return recovery
       ? {
           note: recovery.note,
-          category: recovery.category,
-          priority: recovery.priority,
+          tags: recovery.tags,
           status: selected?.status ?? "OPEN",
         }
       : selected
         ? {
             note: selected.note,
-            category: selected.category,
-            priority: selected.priority,
+            tags: selected.tags,
             status: selected.status,
           }
         : EMPTY_EDITOR;
   });
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [tagDraft, setTagDraft] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null,
@@ -255,17 +253,10 @@ export function FeedbackInspector({
   const pinNumbers = useMemo(() => createPinNumbers(feedback), [feedback]);
   const visibleFeedback = useMemo(
     () =>
-      screenFeedback
-        .filter(
-          (item) =>
-            (!filters.category || item.category === filters.category) &&
-            (!filters.priority || item.priority === filters.priority) &&
-            (!filters.status || item.status === filters.status),
-        )
-        .sort(
-          (a, b) => (pinNumbers.get(a.id) ?? 0) - (pinNumbers.get(b.id) ?? 0),
-        ),
-    [filters, pinNumbers, screenFeedback],
+      [...screenFeedback].sort(
+        (a, b) => (pinNumbers.get(a.id) ?? 0) - (pinNumbers.get(b.id) ?? 0),
+      ),
+    [pinNumbers, screenFeedback],
   );
   const selectedRecord =
     screenFeedback.find((item) => item.id === selectedFeedbackId) ?? null;
@@ -317,15 +308,13 @@ export function FeedbackInspector({
     if (recovery) {
       setEditor({
         note: recovery.note,
-        category: recovery.category,
-        priority: recovery.priority,
+        tags: recovery.tags,
         status: selectedRecord?.status ?? "OPEN",
       });
     } else if (selectedRecord) {
       setEditor({
         note: selectedRecord.note,
-        category: selectedRecord.category,
-        priority: selectedRecord.priority,
+        tags: selectedRecord.tags,
         status: selectedRecord.status,
       });
     } else if (!effectiveDraftPin) {
@@ -351,8 +340,7 @@ export function FeedbackInspector({
       x: pin?.x,
       y: pin?.y,
       note: nextEditor.note,
-      category: nextEditor.category,
-      priority: nextEditor.priority,
+      tags: nextEditor.tags,
     });
     setSaveMessage("Unsaved locally");
   }
@@ -367,11 +355,8 @@ export function FeedbackInspector({
         const patch: UpdateFeedbackInput["patch"] = {};
         const note = nextEditor.note.trim();
         if (note !== record.note) patch.note = note;
-        if (nextEditor.category !== record.category) {
-          patch.category = nextEditor.category;
-        }
-        if (nextEditor.priority !== record.priority) {
-          patch.priority = nextEditor.priority;
+        if (!sameTags(nextEditor.tags, record.tags)) {
+          patch.tags = nextEditor.tags;
         }
         if (Object.keys(patch).length === 0) {
           writeRecovery(projectId, updateRecoveryKey(record.id), null);
@@ -389,8 +374,7 @@ export function FeedbackInspector({
           if (textareaRef.current !== document.activeElement) {
             setEditor({
               note: updated.note,
-              category: updated.category,
-              priority: updated.priority,
+              tags: updated.tags,
               status: updated.status,
             });
           }
@@ -403,8 +387,7 @@ export function FeedbackInspector({
           x: pin.x,
           y: pin.y,
           note: nextEditor.note.trim(),
-          category: nextEditor.category,
-          priority: nextEditor.priority,
+          tags: nextEditor.tags,
           status: "OPEN",
         });
         if (revision === revisionRef.current) {
@@ -438,9 +421,7 @@ export function FeedbackInspector({
     }, NOTE_SAVE_DELAY_MS);
   }
 
-  function updateEditor(
-    patch: Partial<Pick<EditorState, "note" | "category" | "priority">>,
-  ) {
+  function updateEditor(patch: Partial<Pick<EditorState, "note" | "tags">>) {
     const next = { ...editor, ...patch };
     setEditor(next);
     scheduleSave(next);
@@ -463,8 +444,7 @@ export function FeedbackInspector({
       setSaveMessage("Saved");
       if (
         editor.note !== updated.note ||
-        editor.category !== updated.category ||
-        editor.priority !== updated.priority
+        !sameTags(editor.tags, updated.tags)
       ) {
         scheduleSave({ ...editor, status });
       }
@@ -480,28 +460,48 @@ export function FeedbackInspector({
   function changeStatus(event: ChangeEvent<HTMLSelectElement>) {
     const status = event.target.value as FeedbackStatus;
     setEditor((current) => ({ ...current, status }));
-    if (filters.status && filters.status !== status) {
-      setFilters((current) => ({ ...current, status: "" }));
-    }
     void flushStatus(status);
   }
 
-  const matchesFilters = (item: FeedbackRecord) =>
-    (!filters.category || item.category === filters.category) &&
-    (!filters.priority || item.priority === filters.priority) &&
-    (!filters.status || item.status === filters.status);
+  function togglePriority(priority: string) {
+    const others = editor.tags.filter((tag) => !isPriority(tag));
+    updateEditor({
+      tags: editor.tags.includes(priority) ? others : [priority, ...others],
+    });
+  }
+
+  function addTag(raw: string) {
+    const tag = raw.replace(/,/g, " ").trim();
+    setTagDraft("");
+    if (!tag) return;
+    const upper = tag.toUpperCase();
+    if (isPriority(upper)) {
+      if (!editor.tags.includes(upper)) togglePriority(upper);
+      return;
+    }
+    const tags = normalizeTags([...editor.tags, tag]).slice(0, 12);
+    if (!sameTags(tags, editor.tags)) updateEditor({ tags });
+  }
+
+  function removeTag(tag: string) {
+    updateEditor({ tags: editor.tags.filter((item) => item !== tag) });
+  }
+
+  function onTagKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter" || event.key === ",") {
+      event.preventDefault();
+      addTag(tagDraft);
+    } else if (event.key === "Backspace" && !tagDraft) {
+      const last = editor.tags.filter((tag) => !isPriority(tag)).at(-1);
+      if (last) removeTag(last);
+    }
+  }
+
   const versionFeedback = feedback.filter((item) => item.version === version);
-  const exportRecords = versionFeedback.filter(matchesFilters);
-  const activeFilters = [
-    filters.category && `category ${readable(filters.category)}`,
-    filters.priority && `priority ${readable(filters.priority)}`,
-    filters.status && `status ${readable(filters.status)}`,
-  ].filter(Boolean);
+  const exportRecords = versionFeedback;
   const exportScope = `All ${screens.length} screens · version ${version} · ${
-    activeFilters.length
-      ? `filtered by ${activeFilters.join(", ")}`
-      : "no filters"
-  } · ${exportRecords.length} item${exportRecords.length === 1 ? "" : "s"}`;
+    exportRecords.length
+  } item${exportRecords.length === 1 ? "" : "s"}`;
 
   function exportFeedback(format: "json" | "markdown") {
     const input = {
@@ -604,6 +604,52 @@ export function FeedbackInspector({
     );
   }
 
+  function renderItem(item: FeedbackRecord) {
+    if (item.id === editingRecord?.id) {
+      return (
+        <li className="is-editing" key={item.id}>
+          {editorSection}
+          {deleteConfirm(item)}
+        </li>
+      );
+    }
+    const otherTags = item.tags.filter((tag) => !isPriority(tag));
+    return (
+      <li key={item.id}>
+        <button
+          aria-controls={feedbackPinId(item.id)}
+          aria-pressed={item.id === selectedFeedbackId}
+          className={`feedback-comment status-${item.status.toLowerCase()}`}
+          id={feedbackCommentId(item.id)}
+          onClick={() => {
+            onSelectFeedback(item.id);
+            document.getElementById(feedbackPinId(item.id))?.focus();
+          }}
+          type="button"
+        >
+          <span
+            aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}`}
+            className={pinDotClassName(item, item.id === selectedFeedbackId)}
+          >
+            {pinNumbers.get(item.id) ?? 0}
+          </span>
+          <strong>{item.note}</strong>
+          {otherTags.length ? (
+            <span className="feedback-comment-tags">
+              {otherTags.map((tag) => (
+                <span className="tag-chip tag-custom" key={tag}>
+                  {tag}
+                </span>
+              ))}
+            </span>
+          ) : null}
+        </button>
+        {deleteButton(item)}
+        {deleteConfirm(item)}
+      </li>
+    );
+  }
+
   const showEditor = Boolean(effectiveDraftPin || visibleSelectedRecord);
   // The comment being edited renders as the editor in its own list slot, so it
   // never appears twice (once as a saved card and again in the editor).
@@ -639,44 +685,58 @@ export function FeedbackInspector({
           value={editor.note}
         />
       </label>
-      <div className="feedback-editor-taxonomy">
-        <label>
-          Category
-          <select
-            aria-label="Feedback category"
-            onChange={(event) =>
-              updateEditor({
-                category: event.target.value as FeedbackCategory,
-              })
-            }
-            value={editor.category}
-          >
-            {FEEDBACK_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {readable(category)}
-              </option>
+      <fieldset className="feedback-tags">
+        <legend>Tags</legend>
+        <div className="feedback-tag-row">
+          {PRIORITY_TAGS.map((priority) => (
+            <button
+              aria-pressed={editor.tags.includes(priority)}
+              className={`tag-chip tag-suggested tag-${priority.toLowerCase()}`}
+              key={priority}
+              onClick={() => togglePriority(priority)}
+              type="button"
+            >
+              {priority}
+            </button>
+          ))}
+          {editor.tags
+            .filter((tag) => !isPriority(tag))
+            .map((tag) => (
+              <span className="tag-chip tag-custom" key={tag}>
+                {tag}
+                <button
+                  aria-label={`Remove tag ${tag}`}
+                  onClick={() => removeTag(tag)}
+                  type="button"
+                >
+                  <svg
+                    aria-hidden="true"
+                    height="10"
+                    viewBox="0 0 10 10"
+                    width="10"
+                  >
+                    <path
+                      d="M1.5 1.5l7 7M8.5 1.5l-7 7"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    />
+                  </svg>
+                </button>
+              </span>
             ))}
-          </select>
-        </label>
-        <label>
-          Priority
-          <select
-            aria-label="Feedback priority"
-            onChange={(event) =>
-              updateEditor({
-                priority: event.target.value as FeedbackPriority,
-              })
-            }
-            value={editor.priority}
-          >
-            {FEEDBACK_PRIORITIES.map((priority) => (
-              <option key={priority} value={priority}>
-                {readable(priority)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+          <input
+            aria-label="Add tag"
+            className="feedback-tag-input"
+            maxLength={32}
+            onBlur={() => addTag(tagDraft)}
+            onChange={(event) => setTagDraft(event.target.value)}
+            onKeyDown={onTagKeyDown}
+            placeholder="Add tag"
+            value={tagDraft}
+          />
+        </div>
+      </fieldset>
       {visibleSelectedRecord ? (
         <label>
           Status
@@ -687,7 +747,7 @@ export function FeedbackInspector({
           >
             {FEEDBACK_STATUSES.map((status) => (
               <option key={status} value={status}>
-                {readable(status)}
+                {STATUS_LABELS[status]}
               </option>
             ))}
           </select>
@@ -723,124 +783,67 @@ export function FeedbackInspector({
       <header className="feedback-inspector-header">
         <div>
           <span className="eyebrow">Feedback</span>
-          <strong>{visibleFeedback.length} visible</strong>
+          <strong>
+            {visibleFeedback.length} comment
+            {visibleFeedback.length === 1 ? "" : "s"}
+          </strong>
         </div>
       </header>
 
-      <div className="feedback-filters" aria-label="Feedback filters">
-        <label>
-          Category
-          <select
-            aria-label="Category filter"
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                category: event.target.value as Filters["category"],
-              }))
-            }
-            value={filters.category}
-          >
-            <option value="">All</option>
-            {FEEDBACK_CATEGORIES.map((category) => (
-              <option key={category} value={category}>
-                {readable(category)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Priority
-          <select
-            aria-label="Priority filter"
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                priority: event.target.value as Filters["priority"],
-              }))
-            }
-            value={filters.priority}
-          >
-            <option value="">All</option>
-            {FEEDBACK_PRIORITIES.map((priority) => (
-              <option key={priority} value={priority}>
-                {readable(priority)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Status
-          <select
-            aria-label="Status filter"
-            onChange={(event) =>
-              setFilters((current) => ({
-                ...current,
-                status: event.target.value as Filters["status"],
-              }))
-            }
-            value={filters.status}
-          >
-            <option value="">All</option>
-            {FEEDBACK_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {readable(status)}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
       {visibleFeedback.length === 0 ? (
         <p className="feedback-empty">
-          {screenFeedback.length === 0
-            ? "No feedback on this screen yet. Choose Add feedback, then click the screen to drop pin 1."
-            : "No comments on this screen match these filters."}
+          No feedback on this screen yet. Choose Add feedback, then click the
+          screen to drop pin 1.
         </p>
       ) : null}
 
-      <ol className="feedback-list">
-        {visibleFeedback.map((item) =>
-          item.id === editingRecord?.id ? (
-            <li className="is-editing" key={item.id}>
-              {editorSection}
-              {deleteConfirm(item)}
-            </li>
-          ) : (
-            <li key={item.id}>
-              <button
-                aria-controls={feedbackPinId(item.id)}
-                aria-pressed={item.id === selectedFeedbackId}
-                className={`feedback-comment status-${item.status.toLowerCase()}`}
-                id={feedbackCommentId(item.id)}
-                onClick={() => {
-                  onSelectFeedback(item.id);
-                  document.getElementById(feedbackPinId(item.id))?.focus();
-                }}
-                type="button"
-              >
-                <span
-                  aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}`}
-                  className={pinDotClassName(
-                    item,
-                    item.id === selectedFeedbackId,
-                  )}
+      {STATUS_SECTIONS.map((section) => {
+        const items = visibleFeedback.filter(
+          (item) => item.status === section.status,
+        );
+        if (items.length === 0) return null;
+        // Comments without a priority tag sit after the P groups, unheaded.
+        const untagged = items.filter((item) => !priorityTag(item.tags));
+        return (
+          <section
+            aria-label={section.label}
+            className={`feedback-section status-${section.status.toLowerCase()}`}
+            key={section.status}
+          >
+            <h3 className="feedback-section-title">
+              {section.label}
+              <span className="feedback-count">{items.length}</span>
+            </h3>
+            {PRIORITY_TAGS.map((priority) => {
+              const group = items.filter(
+                (item) => priorityTag(item.tags) === priority,
+              );
+              if (group.length === 0) return null;
+              return (
+                <div
+                  aria-label={`${section.label} ${priority}`}
+                  className="feedback-group"
+                  key={priority}
+                  role="group"
                 >
-                  {pinNumbers.get(item.id) ?? 0}
-                </span>
-                <span className="feedback-comment-meta">
-                  {readable(item.priority)} · {readable(item.category)}
-                </span>
-                <strong>{item.note}</strong>
-                <span className="feedback-comment-meta">
-                  {readable(item.status)}
-                </span>
-              </button>
-              {deleteButton(item)}
-              {deleteConfirm(item)}
-            </li>
-          ),
-        )}
-      </ol>
+                  <h4
+                    className={`feedback-group-title tag-${priority.toLowerCase()}`}
+                  >
+                    {priority}
+                    <span className="feedback-count">{group.length}</span>
+                  </h4>
+                  <ol className="feedback-list">{group.map(renderItem)}</ol>
+                </div>
+              );
+            })}
+            {untagged.length ? (
+              <ol className="feedback-list feedback-list-untagged">
+                {untagged.map(renderItem)}
+              </ol>
+            ) : null}
+          </section>
+        );
+      })}
 
       {showEditor && !editingRecord ? editorSection : null}
 

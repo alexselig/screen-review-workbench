@@ -15,7 +15,8 @@
   --warning-soft: #fff0e5;
   --destructive: #b42318;
   --destructive-soft: #fff0ee;
-  --font-display: "League Spartan", Futura, "Avenir Next", system-ui, sans-serif;
+  --font-display:
+    "League Spartan", Futura, "Avenir Next", system-ui, sans-serif;
   --font-sans: "Figtree", "Avenir Next", system-ui, sans-serif;
 }
 
@@ -236,7 +237,7 @@ h1 {
   min-width: 44px;
   min-height: 44px;
   padding: 0 12px;
-  border: 1px solid var(--ink);
+  border: 1px solid transparent;
   background: var(--surface);
   color: var(--ink);
   font-weight: 700;
@@ -244,8 +245,20 @@ h1 {
   cursor: pointer;
 }
 
+/* Footer controls are borderless; hover and focus carry the affordance. */
+.action-bar-nav button:hover:not(:disabled),
+.action-bar .action-bar-fullscreen:hover {
+  background: var(--surface-alt);
+  box-shadow: none;
+}
+
+.action-bar-nav button:focus-visible,
+.action-bar .action-bar-fullscreen:focus-visible {
+  outline: 2px solid var(--bauhaus-blue);
+  outline-offset: 0;
+}
+
 .action-bar-nav button:disabled {
-  border-color: var(--line);
   color: var(--ink-muted);
   cursor: not-allowed;
 }
@@ -288,6 +301,7 @@ h1 {
 
 .action-bar .action-bar-fullscreen {
   flex: none;
+  border-color: transparent;
   width: 44px;
   height: 44px;
 }
@@ -404,7 +418,10 @@ h1 {
 }
 
 /* Collapsed: the tinted band keeps its height but shows no label. */
-.screen-rail[data-mode="compact"]:not([data-expanded="true"]) ol h2 .group-full {
+.screen-rail[data-mode="compact"]:not([data-expanded="true"])
+  ol
+  h2
+  .group-full {
   visibility: hidden;
 }
 
@@ -786,16 +803,8 @@ h1 {
   line-height: 1.45;
 }
 
-.feedback-filters {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  padding-block: 12px;
-  border-block: 1px solid var(--line);
-}
-
-.feedback-filters label,
-.feedback-editor label {
+.feedback-editor label,
+.feedback-tags legend {
   display: grid;
   gap: 5px;
   color: var(--ink-muted);
@@ -805,7 +814,6 @@ h1 {
   text-transform: uppercase;
 }
 
-.feedback-filters select,
 .feedback-editor select,
 .feedback-editor textarea {
   width: 100%;
@@ -814,7 +822,6 @@ h1 {
   color: var(--ink);
 }
 
-.feedback-filters select,
 .feedback-editor select {
   min-height: 44px;
   font-size: 12px;
@@ -933,10 +940,179 @@ h1 {
   text-transform: none;
 }
 
-.feedback-editor-taxonomy {
+/* Tags: P0-P2 toggle chips first, then free-text tags, then the input. */
+.feedback-tags {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.feedback-tags legend {
+  padding: 0 0 5px;
+}
+
+.feedback-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+button.tag-chip {
+  min-width: 44px;
+  justify-content: center;
+  cursor: pointer;
+}
+
+button.tag-chip:hover {
+  background: var(--surface-alt);
+}
+
+.tag-suggested[aria-pressed="false"] {
+  border-style: dashed;
+  color: var(--ink-muted);
+}
+
+.tag-suggested.tag-p0[aria-pressed="true"] {
+  border-color: var(--destructive);
+  background: var(--destructive);
+  color: var(--surface);
+}
+
+.tag-suggested.tag-p1[aria-pressed="true"] {
+  border-color: var(--bauhaus-orange);
+  background: var(--bauhaus-orange);
+  color: var(--ink);
+}
+
+.tag-suggested.tag-p2[aria-pressed="true"] {
+  border-color: var(--ink-muted);
+  background: var(--ink-muted);
+  color: var(--surface);
+}
+
+.tag-custom {
+  border-color: var(--line);
+  background: var(--surface-alt);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.tag-custom button {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  margin-right: -4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.tag-custom button:hover {
+  color: var(--destructive);
+}
+
+.feedback-tag-input {
+  flex: 1 1 96px;
+  min-width: 96px;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.feedback-comment-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.feedback-comment-tags .tag-chip {
+  min-height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+
+/* Status sections (Backlog, In progress, ...) each hold P0-P2 groups. */
+.feedback-section {
+  display: grid;
+  gap: 10px;
+}
+
+.feedback-section-title,
+.feedback-group-title {
+  display: flex;
+  align-items: center;
   gap: 8px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.feedback-section-title {
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--ink);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+}
+
+.feedback-group {
+  display: grid;
+  gap: 6px;
+}
+
+.feedback-group-title {
+  color: var(--ink-muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.feedback-group-title::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  background: var(--ink-muted);
+}
+
+.feedback-group-title.tag-p0::before {
+  background: var(--destructive);
+}
+
+.feedback-group-title.tag-p1::before {
+  background: var(--bauhaus-orange);
+}
+
+.feedback-count {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.feedback-section.status-resolved .feedback-comment strong,
+.feedback-section.status-wont_fix .feedback-comment strong {
+  color: var(--ink-muted);
 }
 
 .feedback-save-state {
@@ -1013,7 +1189,7 @@ h1 {
   flex: none;
 }
 
-.pin-dot.priority-blocking {
+.pin-dot.priority-p0 {
   border-color: var(--ink);
 }
 

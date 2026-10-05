@@ -69,8 +69,7 @@ function sameCreate(
     record.x === input.x &&
     record.y === input.y &&
     record.note === input.note &&
-    record.category === input.category &&
-    record.priority === input.priority &&
+    record.tags.join("\0") === input.tags.join("\0") &&
     record.status === input.status
   );
 }
@@ -123,7 +122,9 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
     try {
       parsed = JSON.parse(contents);
     } catch {
-      throw new Error(`${current} contains invalid JSON; restore or repair it.`);
+      throw new Error(
+        `${current} contains invalid JSON; restore or repair it.`,
+      );
     }
     const result = feedbackEnvelopeSchema.safeParse(parsed);
     if (!result.success) {
@@ -213,8 +214,7 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
         x: input.x,
         y: input.y,
         note: input.note,
-        category: input.category,
-        priority: input.priority,
+        tags: input.tags,
         status: input.status,
         createdAt: timestamp,
         updatedAt: timestamp,

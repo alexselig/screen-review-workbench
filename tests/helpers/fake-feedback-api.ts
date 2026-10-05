@@ -49,13 +49,18 @@ export async function installFakeFeedbackApi() {
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
     try {
       if (match[2] === "import") {
-        return reply(200, await storage.importFeedback(projectId, body.records));
+        return reply(
+          200,
+          await storage.importFeedback(projectId, body.records),
+        );
       }
       if (!id && method === "GET") {
         return reply(200, { feedback: await storage.listFeedback(projectId) });
       }
       if (!id && method === "POST") {
-        return reply(201, { feedback: await storage.createFeedback(projectId, body) });
+        return reply(201, {
+          feedback: await storage.createFeedback(projectId, body),
+        });
       }
       if (id && method === "PATCH") {
         return reply(200, {

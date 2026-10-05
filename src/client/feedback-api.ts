@@ -36,10 +36,7 @@ async function request<T>(
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
   } catch {
-    throw new FeedbackApiError(
-      "The workbench server is not reachable.",
-      0,
-    );
+    throw new FeedbackApiError("The workbench server is not reachable.", 0);
   }
   const payload = (await response.json().catch(() => ({}))) as {
     error?: string;
@@ -119,10 +116,11 @@ export async function migrateLegacyFeedback(
   if (!Array.isArray(records)) {
     return `Older browser-only feedback in "${key}" is not a list, so it was left untouched.`;
   }
-  const result = await request<{ imported: number; skipped: number; invalid: number }>(
-    feedbackUrl(projectId, "/import"),
-    { method: "POST", body: { records } },
-  );
+  const result = await request<{
+    imported: number;
+    skipped: number;
+    invalid: number;
+  }>(feedbackUrl(projectId, "/import"), { method: "POST", body: { records } });
   if (result.invalid > 0) {
     return `${result.invalid} older browser-only feedback item${result.invalid === 1 ? "" : "s"} could not be imported and ${result.invalid === 1 ? "was" : "were"} left in browser storage.`;
   }

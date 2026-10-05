@@ -31,13 +31,14 @@ describe("shared feedback storage", () => {
           x: 0.1,
           y: 0.1,
           note: `Note ${index}`,
-          category: "LAYOUT",
-          priority: "POLISH",
+          tags: ["P2"],
         }),
       ),
     );
 
-    expect(results.filter((result) => result.status === "rejected")).toEqual([]);
+    expect(results.filter((result) => result.status === "rejected")).toEqual(
+      [],
+    );
     expect(await listFeedback(root, "demo")).toHaveLength(20);
   });
 

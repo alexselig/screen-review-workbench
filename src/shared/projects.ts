@@ -19,6 +19,10 @@ export type ProjectList = {
   problems: string[];
 };
 
-export function captureUrl(projectId: string, version: string, screenId: string) {
+export function captureUrl(
+  projectId: string,
+  version: string,
+  screenId: string,
+) {
   return `/api/projects/${encodeURIComponent(projectId)}/captures/${encodeURIComponent(version)}/${encodeURIComponent(screenId)}`;
 }

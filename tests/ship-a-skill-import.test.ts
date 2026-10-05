@@ -7,7 +7,10 @@ import { buildShipASkillRegistration } from "../scripts/import-ship-a-skill.mjs"
 
 describe("Ship a Skill importer", () => {
   it("registers external captures without copying work assets", async () => {
-    const root = path.join(tmpdir(), `ship-import-${process.pid}-${Date.now()}`);
+    const root = path.join(
+      tmpdir(),
+      `ship-import-${process.pid}-${Date.now()}`,
+    );
     const manifestRoot = path.join(
       root,
       "public/design-review/screens/2026-09-29-v3",
@@ -20,8 +23,18 @@ describe("Ship a Skill importer", () => {
       JSON.stringify({
         version: "2026-09-29-v3",
         screens: [
-          { id: "public-landing", file: "public.webp", width: 1440, height: 1000 },
-          { id: "dashboard", file: "dashboard.webp", width: 1440, height: 1000 },
+          {
+            id: "public-landing",
+            file: "public.webp",
+            width: 1440,
+            height: 1000,
+          },
+          {
+            id: "dashboard",
+            file: "dashboard.webp",
+            width: 1440,
+            height: 1000,
+          },
         ],
       }),
     );
@@ -48,7 +61,9 @@ describe("Ship a Skill importer", () => {
       path.join(manifestRoot, "public.webp"),
     );
     expect(JSON.stringify(registration)).not.toContain("local-design-review");
-    await expect(readFile(path.join(root, "public.webp"))).rejects.toMatchObject({
+    await expect(
+      readFile(path.join(root, "public.webp")),
+    ).rejects.toMatchObject({
       code: "ENOENT",
     });
   });

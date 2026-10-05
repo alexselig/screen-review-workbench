@@ -44,9 +44,30 @@ const FALLBACK_PROJECT: PublicProject = {
   name: "Example project",
   versions: ["live"],
   screens: [
-    { id: "landing", ordinal: 1, title: "Public landing", group: "Access", viewport: { width: 1440, height: 1000 }, hasCapture: false },
-    { id: "bootstrap", ordinal: 2, title: "Session bootstrap", group: "Access", viewport: { width: 1440, height: 1000 }, hasCapture: false },
-    { id: "dashboard", ordinal: 3, title: "Populated dashboard", group: "Portfolio", viewport: { width: 1440, height: 1000 }, hasCapture: false },
+    {
+      id: "landing",
+      ordinal: 1,
+      title: "Public landing",
+      group: "Access",
+      viewport: { width: 1440, height: 1000 },
+      hasCapture: false,
+    },
+    {
+      id: "bootstrap",
+      ordinal: 2,
+      title: "Session bootstrap",
+      group: "Access",
+      viewport: { width: 1440, height: 1000 },
+      hasCapture: false,
+    },
+    {
+      id: "dashboard",
+      ordinal: 3,
+      title: "Populated dashboard",
+      group: "Portfolio",
+      viewport: { width: 1440, height: 1000 },
+      hasCapture: false,
+    },
   ],
 };
 
@@ -70,7 +91,8 @@ function isTyping(target: EventTarget | null) {
 }
 
 const isMac =
-  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+  typeof navigator !== "undefined" &&
+  /Mac|iPhone|iPad/.test(navigator.platform);
 
 // Keeps a side column in view while the page scrolls. A column shorter than
 // the window sticks to the top; a taller one scrolls with the page until its
@@ -96,9 +118,7 @@ function useFollowPage(ref: RefObject<HTMLElement | null>, gap = 0) {
 }
 
 type LoadState =
-  | { kind: "loading" }
-  | { kind: "ready" }
-  | { kind: "error"; message: string };
+  { kind: "loading" } | { kind: "ready" } | { kind: "error"; message: string };
 
 export function App() {
   const [railMode, setRailMode] = useState<RailMode>("wide");
@@ -106,7 +126,9 @@ export function App() {
   const [projects, setProjects] = useState<PublicProject[] | null>(null);
   const [projectProblems, setProjectProblems] = useState<string[]>([]);
   const [projectId, setProjectId] = useState(initialPlace.project ?? "");
-  const [versionChoice, setVersionChoice] = useState(initialPlace.version ?? "");
+  const [versionChoice, setVersionChoice] = useState(
+    initialPlace.version ?? "",
+  );
   const [selectedChoice, setSelectedId] = useState(initialPlace.screen ?? "");
   const project =
     projects?.find((item) => item.id === projectId) ??
@@ -145,7 +167,9 @@ export function App() {
     fetchProjects()
       .then((list) => {
         if (cancelled) return;
-        setProjects(list.projects.length > 0 ? list.projects : [FALLBACK_PROJECT]);
+        setProjects(
+          list.projects.length > 0 ? list.projects : [FALLBACK_PROJECT],
+        );
         setProjectProblems(list.problems);
       })
       .catch((error: unknown) => {
@@ -237,7 +261,9 @@ export function App() {
   useEffect(() => {
     if (!draftPin) return;
     document
-      .querySelector<HTMLTextAreaElement>('textarea[aria-label="Feedback note"]')
+      .querySelector<HTMLTextAreaElement>(
+        'textarea[aria-label="Feedback note"]',
+      )
       ?.focus();
   }, [draftPin]);
 
@@ -297,12 +323,18 @@ export function App() {
     (id: string, input: UpdateFeedbackInput) =>
       enqueue(() =>
         withConflictRefresh(async () => {
-          const expectedUpdatedAt = latestOwnRevision(id, input.expectedUpdatedAt);
+          const expectedUpdatedAt = latestOwnRevision(
+            id,
+            input.expectedUpdatedAt,
+          );
           const updated = await patchFeedback(project.id, id, {
             ...input,
             expectedUpdatedAt,
           });
-          ownRevisionsRef.current.set(`${id}@${expectedUpdatedAt}`, updated.updatedAt);
+          ownRevisionsRef.current.set(
+            `${id}@${expectedUpdatedAt}`,
+            updated.updatedAt,
+          );
           upsertRecord(updated);
           return updated;
         }),
@@ -336,7 +368,9 @@ export function App() {
     // Start each screen at its top, without jumping when it is already in view.
     const grid = gridRef.current;
     if (grid && grid.getBoundingClientRect().top < 0) {
-      window.scrollTo({ top: window.scrollY + grid.getBoundingClientRect().top });
+      window.scrollTo({
+        top: window.scrollY + grid.getBoundingClientRect().top,
+      });
     }
   }, []);
 
@@ -369,12 +403,23 @@ export function App() {
   // ← and → (or [ and ]) step through screens when not typing.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() === "f" && (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+      if (
+        event.key.toLowerCase() === "f" &&
+        (event.metaKey || event.ctrlKey) &&
+        !event.shiftKey &&
+        !event.altKey
+      ) {
         event.preventDefault();
         startPin();
         return;
       }
-      if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
+      if (
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        isTyping(event.target)
+      )
+        return;
       if (event.key === "ArrowRight" || event.key === "]") {
         event.preventDefault();
         stepScreen(1);
@@ -433,7 +478,8 @@ export function App() {
       <header className="canvas-header">
         <div>
           <span className="eyebrow">
-            {String(selected.ordinal).padStart(2, "0")} / {screens.length} · {selected.group}
+            {String(selected.ordinal).padStart(2, "0")} / {screens.length} ·{" "}
+            {selected.group}
           </span>
           <h2>{selected.title}</h2>
         </div>
@@ -488,7 +534,11 @@ export function App() {
             </span>
             <h2>{selected.title}</h2>
             <span className="screen-frame-size">
-              {captureFailed ? "Capture could not load · " : selected.hasCapture ? "" : "No capture · "}
+              {captureFailed
+                ? "Capture could not load · "
+                : selected.hasCapture
+                  ? ""
+                  : "No capture · "}
               {selected.viewport.width} × {selected.viewport.height}
             </span>
           </div>
@@ -510,7 +560,9 @@ export function App() {
                 key={item.id}
                 onClick={() => {
                   setSelectedFeedbackId(item.id);
-                  document.getElementById(`feedback-comment-${item.id}`)?.focus();
+                  document
+                    .getElementById(`feedback-comment-${item.id}`)
+                    ?.focus();
                 }}
                 style={{ left: `${item.x * 100}%`, top: `${item.y * 100}%` }}
                 type="button"
@@ -666,7 +718,11 @@ export function App() {
         </div>
       </header>
       {projectProblems.map((problem) => (
-        <p className="workbench-banner workbench-banner-error" key={problem} role="alert">
+        <p
+          className="workbench-banner workbench-banner-error"
+          key={problem}
+          role="alert"
+        >
           {problem}
         </p>
       ))}

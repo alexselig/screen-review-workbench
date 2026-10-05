@@ -11,7 +11,8 @@ export function assertMutationOrigin(
   origin: string | undefined,
   expectedOrigin: string | readonly string[],
 ) {
-  const allowed = typeof expectedOrigin === "string" ? [expectedOrigin] : expectedOrigin;
+  const allowed =
+    typeof expectedOrigin === "string" ? [expectedOrigin] : expectedOrigin;
   if (!origin || !allowed.includes(origin)) {
     throw new Error("Mutation origin does not match the workbench origin.");
   }

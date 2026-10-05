@@ -34,7 +34,10 @@ export function ScreenRail({
     const strip = current.closest("ol");
     if (strip && strip.scrollWidth > strip.clientWidth) {
       const left = current.offsetLeft - strip.offsetLeft;
-      if (left < strip.scrollLeft || left + current.offsetWidth > strip.scrollLeft + strip.clientWidth) {
+      if (
+        left < strip.scrollLeft ||
+        left + current.offsetWidth > strip.scrollLeft + strip.clientWidth
+      ) {
         strip.scrollLeft = Math.max(0, left - 16);
       }
     }
@@ -76,10 +79,14 @@ export function ScreenRail({
           </button>
         ) : null}
         <button
-          aria-label={mode === "wide" ? "Collapse screen index" : "Expand screen index"}
+          aria-label={
+            mode === "wide" ? "Collapse screen index" : "Expand screen index"
+          }
           aria-expanded={mode === "wide"}
           className="rail-mode-button"
-          title={mode === "wide" ? "Collapse to numbers" : "Expand screen index"}
+          title={
+            mode === "wide" ? "Collapse to numbers" : "Expand screen index"
+          }
           onClick={() => {
             setPinned(false);
             setTemporaryExpanded(false);
@@ -89,7 +96,11 @@ export function ScreenRail({
         >
           <svg aria-hidden="true" height="16" viewBox="0 0 16 16" width="16">
             <path
-              d={mode === "wide" ? "M9 3 4 8l5 5M13 3 8 8l5 5" : "M3 3l5 5-5 5M7 3l5 5-5 5"}
+              d={
+                mode === "wide"
+                  ? "M9 3 4 8l5 5M13 3 8 8l5 5"
+                  : "M3 3l5 5-5 5M7 3l5 5-5 5"
+              }
               fill="none"
               stroke="currentColor"
               strokeWidth="1.75"
@@ -129,7 +140,10 @@ export function ScreenRail({
                     {openCounts.get(screen.id)}
                   </span>
                 ) : (
-                  <span aria-label="No open feedback" className="feedback-marker" />
+                  <span
+                    aria-label="No open feedback"
+                    className="feedback-marker"
+                  />
                 )}
               </button>
             </li>

@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
 } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -34,8 +35,7 @@ function feedback(overrides: Partial<FeedbackRecord> = {}): FeedbackRecord {
     x: 0.25,
     y: 0.75,
     note: "Clarify the primary action.",
-    category: "LAYOUT",
-    priority: "IMPORTANT",
+    tags: ["P1"],
     status: "OPEN",
     createdAt: "2026-10-05T20:00:00.000Z",
     updatedAt: "2026-10-05T20:00:00.000Z",
@@ -58,8 +58,7 @@ function renderInspector({
       x: input.x,
       y: input.y,
       note: input.note,
-      category: input.category,
-      priority: input.priority,
+      tags: input.tags ?? [],
     }),
   ),
   onUpdate = vi.fn(async (id: string, input: UpdateFeedbackInput) =>
@@ -132,38 +131,30 @@ describe("FeedbackInspector", () => {
     });
   });
 
-  it("flushes status immediately and clears a filter that would hide it", async () => {
+  it("flushes status immediately", async () => {
     const onUpdate = vi.fn(async (id: string, input: UpdateFeedbackInput) =>
       feedback({ id, ...input.patch, updatedAt: "2026-10-05T20:00:01.000Z" }),
     );
     renderInspector({ onUpdate });
-    fireEvent.change(screen.getByRole("combobox", { name: "Status filter" }), {
-      target: { value: "OPEN" },
-    });
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Feedback status" }), {
-      target: { value: "RESOLVED" },
-    });
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Feedback status" }),
+      {
+        target: { value: "RESOLVED" },
+      },
+    );
 
     expect(onUpdate).toHaveBeenCalledTimes(1);
     expect(onUpdate).toHaveBeenCalledWith("feedback-1", {
       expectedUpdatedAt: "2026-10-05T20:00:00.000Z",
       patch: { status: "RESOLVED" },
     });
-    expect(screen.getByRole("combobox", { name: "Status filter" })).toHaveValue(
-      "",
-    );
   });
 
   it("rebases a pending note debounce after an immediate status flush", async () => {
     vi.useFakeTimers();
     const onUpdate = vi
-      .fn<
-        (
-          id: string,
-          input: UpdateFeedbackInput,
-        ) => Promise<FeedbackRecord>
-      >()
+      .fn<(id: string, input: UpdateFeedbackInput) => Promise<FeedbackRecord>>()
       .mockResolvedValueOnce(
         feedback({
           status: "IN_PROGRESS",
@@ -182,9 +173,12 @@ describe("FeedbackInspector", () => {
       target: { value: "Pending note" },
     });
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Feedback status" }), {
-      target: { value: "IN_PROGRESS" },
-    });
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Feedback status" }),
+      {
+        target: { value: "IN_PROGRESS" },
+      },
+    );
     await act(async () => Promise.resolve());
     await act(async () => vi.advanceTimersByTime(500));
 
@@ -248,8 +242,7 @@ describe("FeedbackInspector", () => {
           x: 0.4,
           y: 0.6,
           note: "Recovered note",
-          category: "CONTENT",
-          priority: "POLISH",
+          tags: ["P2"],
         },
       }),
     );
@@ -263,7 +256,7 @@ describe("FeedbackInspector", () => {
     );
   });
 
-  it("filters comments and exports the filtered result", () => {
+  it("chunks comments by status then priority and hides empty chunks", () => {
     const onExport = vi.fn();
     render(
       <FeedbackInspector
@@ -272,8 +265,16 @@ describe("FeedbackInspector", () => {
           feedback(),
           feedback({
             id: "feedback-2",
-            category: "INTERACTION",
+            tags: ["P0", "Hover"],
+            status: "IN_PROGRESS",
             note: "Fix hover behavior.",
+            createdAt: "2026-10-05T20:01:00.000Z",
+          }),
+          feedback({
+            id: "feedback-3",
+            tags: [],
+            note: "No priority yet.",
+            createdAt: "2026-10-05T20:02:00.000Z",
           }),
         ]}
         onCancelDraft={vi.fn()}
@@ -290,17 +291,61 @@ describe("FeedbackInspector", () => {
       />,
     );
 
-    fireEvent.change(screen.getByRole("combobox", { name: "Category filter" }), {
-      target: { value: "INTERACTION" },
+    expect(screen.queryByRole("combobox", { name: /filter/i })).toBeNull();
+    const backlog = screen.getByRole("region", { name: "Backlog" });
+    const inProgress = screen.getByRole("region", { name: "In progress" });
+    expect(screen.queryByRole("region", { name: "Complete" })).toBeNull();
+
+    expect(
+      within(backlog).getByRole("group", { name: "Backlog P1" }),
+    ).toHaveTextContent("Clarify the primary action.");
+    expect(
+      within(backlog).queryByRole("group", { name: "Backlog P0" }),
+    ).toBeNull();
+    // Untagged comments sit in the section without a group heading.
+    expect(within(backlog).getByText("No priority yet.")).toBeInTheDocument();
+    expect(within(backlog).getAllByRole("group")).toHaveLength(1);
+
+    const urgent = within(inProgress).getByRole("group", {
+      name: "In progress P0",
     });
-    expect(screen.queryByText("Clarify the primary action.")).not.toBeInTheDocument();
-    expect(screen.getByText("Fix hover behavior.")).toBeInTheDocument();
+    expect(urgent).toHaveTextContent("Fix hover behavior.");
+    expect(urgent).toHaveTextContent("Hover");
 
     fireEvent.click(screen.getByRole("button", { name: "Export Markdown" }));
-    expect(onExport).toHaveBeenCalledWith(
-      "markdown",
-      expect.stringContaining("Fix hover behavior."),
+    expect(onExport.mock.calls[0][1]).toContain("Fix hover behavior.");
+    expect(onExport.mock.calls[0][1]).toContain(
+      "Pin 2 · P0, Hover · In progress",
     );
-    expect(onExport.mock.calls[0][1]).not.toContain("Clarify the primary action.");
+  });
+
+  it("sets one priority tag at a time and adds free-text tags", async () => {
+    vi.useFakeTimers();
+    const onUpdate = vi.fn(async (id: string, input: UpdateFeedbackInput) =>
+      feedback({ id, ...input.patch, updatedAt: "2026-10-05T20:00:01.000Z" }),
+    );
+    renderInspector({ onUpdate });
+
+    expect(screen.getByRole("button", { name: "P1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "P0" }));
+    expect(screen.getByRole("button", { name: "P1" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    const input = screen.getByRole("textbox", { name: "Add tag" });
+    fireEvent.change(input, { target: { value: "Copy" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(
+      screen.getByRole("button", { name: "Remove tag Copy" }),
+    ).toBeVisible();
+
+    await act(async () => vi.advanceTimersByTime(500));
+    expect(onUpdate).toHaveBeenLastCalledWith("feedback-1", {
+      expectedUpdatedAt: "2026-10-05T20:00:00.000Z",
+      patch: { tags: ["P0", "Copy"] },
+    });
   });
 });

@@ -24,9 +24,14 @@ The server binds to `http://127.0.0.1:4173`.
 - Stable screen manifests and a local Ship a Skill registration importer.
 - Screen pins placed on an aspect-locked screen frame, so they stay put at any
   window size. Each comment card leads with the same numbered dot as its pin.
-- Category, priority, status, filters, autosaved notes, two-step delete, and
-  deterministic JSON/Markdown exports of every screen (with the active filters
-  and scope stated in the file).
+- Free-text tags with suggested P0/P1/P2 priorities (one at a time; new pins
+  default to P1), a status of Backlog, In progress, Complete or Won't fix,
+  autosaved notes, two-step delete, and deterministic JSON/Markdown exports of
+  every screen (with the scope stated in the file).
+- The feedback panel chunks comments by status, then by priority. Empty chunks
+  are hidden and untagged comments sit under their status with no heading.
+- Older feedback files are migrated on read: priority Blocking/Important/Polish
+  becomes P0/P1/P2 and the category becomes a tag.
 - Responsive layout: at 900px and below, screens become a numbered strip and
   the feedback panel stacks under the canvas.
 - Real captures: registered projects are read from

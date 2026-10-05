@@ -1,4 +1,4 @@
-import type { FeedbackRecord } from "./feedback";
+import { STATUS_LABELS, type FeedbackRecord } from "./feedback";
 import type { ReviewScreen } from "./manifest";
 
 export type FeedbackExportInput = {
@@ -45,7 +45,9 @@ export function createPinNumbers(feedback: FeedbackRecord[]) {
 }
 
 function safeFeedback(input: FeedbackExportInput): ExportFeedback[] {
-  const screenById = new Map(input.screens.map((screen) => [screen.id, screen]));
+  const screenById = new Map(
+    input.screens.map((screen) => [screen.id, screen]),
+  );
   const pinNumbers = createPinNumbers(input.allFeedback ?? input.feedback);
   return input.feedback
     .map((item) => {
@@ -82,10 +84,7 @@ export function serializeJson(input: FeedbackExportInput): string {
 
 function escapeMarkdown(value: string) {
   return value
-    .replace(
-      /[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F-\u009F]/g,
-      " ",
-    )
+    .replace(/[\u0000-\u0009\u000B\u000C\u000E-\u001F\u007F-\u009F]/g, " ")
     .replace(/([\\`*_[\]{}()#+\-!|>])/g, "\\$1")
     .replace(/\r\n?|\n/g, "<br>");
 }
@@ -116,7 +115,7 @@ export function serializeMarkdown(input: FeedbackExportInput): string {
     const checked =
       item.status === "RESOLVED" || item.status === "WONT_FIX" ? "x" : " ";
     lines.push(
-      `- [${checked}] **Pin ${item.pinNumber} · ${item.priority} · ${item.category} · ${item.status}** (${percent(item.x)}, ${percent(item.y)}): ${escapeMarkdown(item.note)}`,
+      `- [${checked}] **Pin ${item.pinNumber}${item.tags.length ? ` · ${item.tags.join(", ")}` : ""} · ${STATUS_LABELS[item.status]}** (${percent(item.x)}, ${percent(item.y)}): ${escapeMarkdown(item.note)}`,
     );
   }
 

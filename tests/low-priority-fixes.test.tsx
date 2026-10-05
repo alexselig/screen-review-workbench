@@ -34,8 +34,7 @@ function seed(screenId: string, note: string, minute: number) {
     x: 0.5,
     y: 0.5,
     note,
-    category: minute % 2 ? "CONTENT" : "LAYOUT",
-    priority: "IMPORTANT",
+    tags: ["P1"],
   });
 }
 
@@ -64,26 +63,35 @@ describe("export scope", () => {
         onUpdate={vi.fn()}
         projectId="example"
         screens={[
-          { id: "landing", ordinal: 1, title: "Landing", group: "A", viewport: { width: 1440, height: 1000 } },
-          { id: "dashboard", ordinal: 2, title: "Dashboard", group: "A", viewport: { width: 1440, height: 1000 } },
+          {
+            id: "landing",
+            ordinal: 1,
+            title: "Landing",
+            group: "A",
+            viewport: { width: 1440, height: 1000 },
+          },
+          {
+            id: "dashboard",
+            ordinal: 2,
+            title: "Dashboard",
+            group: "A",
+            viewport: { width: 1440, height: 1000 },
+          },
         ]}
         selectedFeedbackId={null}
         selectedScreenId="landing"
         version="live"
       />,
     );
-    fireEvent.change(screen.getByRole("combobox", { name: "Category filter" }), {
-      target: { value: "CONTENT" },
-    });
     expect(document.querySelector(".feedback-export-scope")).toHaveTextContent(
-      "All 2 screens · version live · filtered by category Content · 1 item",
+      "All 2 screens · version live · 3 items",
     );
     fireEvent.click(screen.getByRole("button", { name: "Export Markdown" }));
 
     expect(exported[0]).toContain("_Scope: All 2 screens");
     expect(exported[0]).toContain("**Pin 2 ");
     expect(exported[0]).toContain("Landing two");
-    expect(exported[0]).not.toContain("Landing one");
+    expect(exported[0]).toContain("Dashboard one");
   });
 
   it("numbers filtered exports from the full set", () => {
@@ -93,13 +101,22 @@ describe("export scope", () => {
       version: "live",
       x: 0,
       y: 0,
-      category: "LAYOUT",
-      priority: "POLISH",
+      tags: ["P2"] as string[],
       status: "OPEN",
       updatedAt: "2026-10-05T20:00:00.000Z",
     } as const;
-    const first: FeedbackRecord = { ...base, id: "a", note: "A", createdAt: "2026-10-05T19:00:00.000Z" };
-    const second: FeedbackRecord = { ...base, id: "b", note: "B", createdAt: "2026-10-05T19:30:00.000Z" };
+    const first: FeedbackRecord = {
+      ...base,
+      id: "a",
+      note: "A",
+      createdAt: "2026-10-05T19:00:00.000Z",
+    };
+    const second: FeedbackRecord = {
+      ...base,
+      id: "b",
+      note: "B",
+      createdAt: "2026-10-05T19:30:00.000Z",
+    };
     const markdown = serializeMarkdown({
       projectId: "p",
       screens: [],
@@ -179,8 +196,7 @@ describe("recovery validation", () => {
           x: 0.4,
           y: 0.6,
           note: "Valid draft",
-          category: "CONTENT",
-          priority: "POLISH",
+          tags: ["P2"],
         },
         "update:x": { kind: "update", note: 5, category: "NOPE" },
       }),

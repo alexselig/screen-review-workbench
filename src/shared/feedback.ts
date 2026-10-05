@@ -1,18 +1,14 @@
 import { z } from "zod";
 
-export const FEEDBACK_CATEGORIES = [
-  "LAYOUT",
-  "CONTENT",
-  "INTERACTION",
-  "STATE",
-  "ACCESSIBILITY",
-] as const;
+// Priority lives in tags: suggested P0-P2, plus any free-text tag.
+export const PRIORITY_TAGS = ["P0", "P1", "P2"] as const;
+export type PriorityTag = (typeof PRIORITY_TAGS)[number];
 
-export const FEEDBACK_PRIORITIES = [
-  "BLOCKING",
-  "IMPORTANT",
-  "POLISH",
-] as const;
+const LEGACY_PRIORITY_TAGS: Record<string, PriorityTag> = {
+  BLOCKING: "P0",
+  IMPORTANT: "P1",
+  POLISH: "P2",
+};
 
 export const FEEDBACK_STATUSES = [
   "OPEN",
@@ -21,12 +17,65 @@ export const FEEDBACK_STATUSES = [
   "WONT_FIX",
 ] as const;
 
-export const feedbackCategorySchema = z.enum(FEEDBACK_CATEGORIES);
-export const feedbackPrioritySchema = z.enum(FEEDBACK_PRIORITIES);
+export const feedbackTagSchema = z.string().trim().min(1).max(32);
+export const feedbackTagsSchema = z
+  .array(feedbackTagSchema)
+  .max(12)
+  .transform(normalizeTags);
 export const feedbackStatusSchema = z.enum(FEEDBACK_STATUSES);
+
+// One vocabulary for the status picker, the pane sections and exports.
+export const STATUS_LABELS: Record<(typeof FEEDBACK_STATUSES)[number], string> =
+  {
+    OPEN: "Backlog",
+    IN_PROGRESS: "In progress",
+    RESOLVED: "Complete",
+    WONT_FIX: "Won't fix",
+  };
 export const normalizedCoordinateSchema = z.number().finite().min(0).max(1);
 
-export const feedbackRecordSchema = z.object({
+export function normalizeTags(tags: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const raw of tags) {
+    const tag = raw.trim();
+    const upper = tag.toUpperCase();
+    const value = (PRIORITY_TAGS as readonly string[]).includes(upper)
+      ? upper
+      : tag;
+    if (!value || seen.has(value.toLowerCase())) continue;
+    seen.add(value.toLowerCase());
+    result.push(value);
+  }
+  return result;
+}
+
+function titleCase(value: string) {
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+// Records saved before tags existed carry `priority` and `category`; read them
+// as tags so nothing on disk has to be rewritten up front.
+export function migrateLegacyTags(value: unknown): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  if (Array.isArray(record.tags)) return record;
+  const { priority, category, ...rest } = record;
+  const tags: string[] = [];
+  if (typeof priority === "string" && LEGACY_PRIORITY_TAGS[priority]) {
+    tags.push(LEGACY_PRIORITY_TAGS[priority]);
+  }
+  if (typeof category === "string" && category) tags.push(titleCase(category));
+  return { ...rest, tags };
+}
+
+const feedbackRecordObjectSchema = z.object({
   id: z.string().min(1),
   projectId: z.string().min(1),
   screenId: z.string().min(1),
@@ -34,12 +83,16 @@ export const feedbackRecordSchema = z.object({
   x: normalizedCoordinateSchema,
   y: normalizedCoordinateSchema,
   note: z.string().trim().min(1),
-  category: feedbackCategorySchema,
-  priority: feedbackPrioritySchema,
+  tags: feedbackTagsSchema,
   status: feedbackStatusSchema,
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
+
+export const feedbackRecordSchema = z.preprocess(
+  migrateLegacyTags,
+  feedbackRecordObjectSchema,
+);
 
 export const createFeedbackInputSchema = z.object({
   clientMutationId: z.uuid(),
@@ -48,16 +101,14 @@ export const createFeedbackInputSchema = z.object({
   x: normalizedCoordinateSchema,
   y: normalizedCoordinateSchema,
   note: z.string().trim().min(1),
-  category: feedbackCategorySchema,
-  priority: feedbackPrioritySchema,
+  tags: feedbackTagsSchema.optional().default([]),
   status: feedbackStatusSchema.optional().default("OPEN"),
 });
 
 export const feedbackPatchSchema = z
   .object({
     note: z.string().trim().min(1).optional(),
-    category: feedbackCategorySchema.optional(),
-    priority: feedbackPrioritySchema.optional(),
+    tags: feedbackTagsSchema.optional(),
     status: feedbackStatusSchema.optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, {
@@ -69,8 +120,6 @@ export const updateFeedbackInputSchema = z.object({
   patch: feedbackPatchSchema,
 });
 
-export type FeedbackCategory = z.infer<typeof feedbackCategorySchema>;
-export type FeedbackPriority = z.infer<typeof feedbackPrioritySchema>;
 export type FeedbackStatus = z.infer<typeof feedbackStatusSchema>;
 export type FeedbackRecord = z.infer<typeof feedbackRecordSchema>;
 export type CreateFeedbackInput = z.input<typeof createFeedbackInputSchema>;
@@ -101,6 +150,13 @@ export function normalizePinCoordinates(
     x: Number(x.toFixed(6)),
     y: Number(y.toFixed(6)),
   };
+}
+
+export function priorityTag(tags: readonly string[]): PriorityTag | null {
+  for (const priority of PRIORITY_TAGS) {
+    if (tags.includes(priority)) return priority;
+  }
+  return null;
 }
 
 export function isOpenFeedback(feedback: FeedbackRecord): boolean {

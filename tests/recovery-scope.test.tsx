@@ -47,8 +47,7 @@ describe("recovered draft scope", () => {
           x: 0.4,
           y: 0.6,
           note: "Landing-only draft",
-          category: "CONTENT",
-          priority: "POLISH",
+          tags: ["P2"],
         },
       }),
     );

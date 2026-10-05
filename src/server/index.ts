@@ -1,4 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import type { AddressInfo } from "node:net";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -42,16 +46,25 @@ export async function startServer({
     server: { middlewareMode: true },
     appType: "spa",
   });
-  const server = createServer(async (request: IncomingMessage, response: ServerResponse) => {
-    if (request.url === "/healthz") {
-      json(response, 200, { ok: true });
-      return;
-    }
-    if (await handleApi(request, response, { storage, port: boundPort, catalog })) return;
-    vite.middlewares(request, response, () => {
-      json(response, 404, { error: "not found" });
-    });
-  });
+  const server = createServer(
+    async (request: IncomingMessage, response: ServerResponse) => {
+      if (request.url === "/healthz") {
+        json(response, 200, { ok: true });
+        return;
+      }
+      if (
+        await handleApi(request, response, {
+          storage,
+          port: boundPort,
+          catalog,
+        })
+      )
+        return;
+      vite.middlewares(request, response, () => {
+        json(response, 404, { error: "not found" });
+      });
+    },
+  );
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, host, resolve);

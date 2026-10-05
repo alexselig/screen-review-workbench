@@ -15,7 +15,9 @@ describe("FullscreenReview", () => {
         <div>Canvas</div>
       </FullscreenReview>,
     );
-    const navigation = screen.getByRole("button", { name: "Open navigation panel" });
+    const navigation = screen.getByRole("button", {
+      name: "Open navigation panel",
+    });
     fireEvent.mouseEnter(navigation.parentElement!);
     expect(navigation).toHaveAttribute("aria-expanded", "true");
     fireEvent.keyDown(window, { key: "Escape" });

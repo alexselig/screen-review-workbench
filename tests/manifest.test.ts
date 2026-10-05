@@ -6,8 +6,20 @@ describe("screen manifest", () => {
   it("requires unique stable ordinals", () => {
     expect(() =>
       parseScreens([
-        { id: "a", ordinal: 1, title: "A", group: "One", viewport: { width: 1440, height: 1000 } },
-        { id: "b", ordinal: 1, title: "B", group: "One", viewport: { width: 1440, height: 1000 } },
+        {
+          id: "a",
+          ordinal: 1,
+          title: "A",
+          group: "One",
+          viewport: { width: 1440, height: 1000 },
+        },
+        {
+          id: "b",
+          ordinal: 1,
+          title: "B",
+          group: "One",
+          viewport: { width: 1440, height: 1000 },
+        },
       ]),
     ).toThrow(/ordinal/i);
   });

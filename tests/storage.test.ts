@@ -1,4 +1,11 @@
-import { mkdtemp, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -25,15 +32,14 @@ const createInput = {
   x: 0.25,
   y: 0.75,
   note: "Clarify the primary action.",
-  category: "LAYOUT" as const,
-  priority: "IMPORTANT" as const,
+  tags: ["P1"],
 };
 
 afterEach(async () => {
   await Promise.all(
-    createdDirectories.splice(0).map((directory) =>
-      rm(directory, { recursive: true, force: true }),
-    ),
+    createdDirectories
+      .splice(0)
+      .map((directory) => rm(directory, { recursive: true, force: true })),
   );
 });
 
@@ -80,7 +86,9 @@ describe("feedback storage", () => {
         rename: async (from, to) => {
           expect(from).toBe(join(root, "demo", "feedback.json.next"));
           expect(to).toBe(join(root, "demo", "feedback.json"));
-          expect(JSON.parse(await readFile(from, "utf8")).feedback).toHaveLength(1);
+          expect(
+            JSON.parse(await readFile(from, "utf8")).feedback,
+          ).toHaveLength(1);
           inspectedNextFile = true;
           await rename(from, to);
         },

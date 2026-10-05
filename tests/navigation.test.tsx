@@ -1,4 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { App } from "../src/client/app";
@@ -25,40 +32,57 @@ function actionBar() {
 describe("action bar", () => {
   it("keeps Add feedback in the fixed footer, not the side panel", async () => {
     render(<App />);
-    const add = within(actionBar()).getByRole("button", { name: "Add feedback" });
+    const add = within(actionBar()).getByRole("button", {
+      name: "Add feedback",
+    });
     await waitFor(() => expect(add).toBeEnabled());
     expect(
-      within(screen.getByRole("complementary", { name: "Feedback inspector" })).queryByRole(
-        "button",
-        { name: "Add feedback" },
-      ),
+      within(
+        screen.getByRole("complementary", { name: "Feedback inspector" }),
+      ).queryByRole("button", { name: "Add feedback" }),
     ).toBeNull();
   });
 
   it("toggles fullscreen from the bottom-left of the footer", async () => {
     render(<App />);
-    const view = within(actionBar()).getByRole("button", { name: "View fullscreen" });
+    const view = within(actionBar()).getByRole("button", {
+      name: "View fullscreen",
+    });
     expect(view.closest(".action-bar-start")).not.toBeNull();
     fireEvent.click(view);
-    const exit = await within(actionBar()).findByRole("button", { name: "Exit fullscreen" });
+    const exit = await within(actionBar()).findByRole("button", {
+      name: "Exit fullscreen",
+    });
     expect(exit.closest(".action-bar-start")).not.toBeNull();
     fireEvent.click(exit);
-    expect(await within(actionBar()).findByRole("button", { name: "View fullscreen" })).toBeVisible();
+    expect(
+      await within(actionBar()).findByRole("button", {
+        name: "View fullscreen",
+      }),
+    ).toBeVisible();
   });
 
   it("centres screen navigation in the footer", () => {
     render(<App />);
-    const nav = within(actionBar()).getByRole("button", { name: "Next screen" });
+    const nav = within(actionBar()).getByRole("button", {
+      name: "Next screen",
+    });
     expect(nav.closest(".action-bar-nav")?.parentElement).toBe(actionBar());
     expect(actionBar().children[1]).toBe(nav.closest(".action-bar-nav"));
   });
 
   it("starts a pin with Cmd+F or Ctrl+F instead of the browser find bar", async () => {
     render(<App />);
-    const add = within(actionBar()).getByRole("button", { name: "Add feedback" });
+    const add = within(actionBar()).getByRole("button", {
+      name: "Add feedback",
+    });
     await waitFor(() => expect(add).toBeEnabled());
 
-    const meta = new KeyboardEvent("keydown", { key: "f", metaKey: true, cancelable: true });
+    const meta = new KeyboardEvent("keydown", {
+      key: "f",
+      metaKey: true,
+      cancelable: true,
+    });
     window.dispatchEvent(meta);
     expect(meta.defaultPrevented).toBe(true);
     await waitFor(() => expect(add).toHaveAttribute("aria-pressed", "true"));
@@ -84,18 +108,32 @@ describe("action bar", () => {
     expect(next).toBeDisabled();
     fireEvent.keyDown(window, { key: "ArrowLeft" });
     expect(bar).toHaveTextContent("02 / 3");
-    await waitFor(() => expect(window.location.hash).toContain("screen=bootstrap"));
+    await waitFor(() =>
+      expect(window.location.hash).toContain("screen=bootstrap"),
+    );
   });
 
   it("does not change screens while typing a note", async () => {
     render(<App />);
-    const add = within(actionBar()).getByRole("button", { name: "Add feedback" });
+    const add = within(actionBar()).getByRole("button", {
+      name: "Add feedback",
+    });
     await waitFor(() => expect(add).toBeEnabled());
     fireEvent.click(add);
     const frame = screen.getByTestId("screen-frame");
     Object.defineProperty(frame, "getBoundingClientRect", {
       configurable: true,
-      value: () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0, toJSON: () => ({}) }),
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 800,
+        height: 600,
+        right: 800,
+        bottom: 600,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }),
     });
     fireEvent.click(frame, { clientX: 400, clientY: 300 });
     const note = screen.getByRole("textbox", { name: "Feedback note" });
@@ -106,6 +144,8 @@ describe("action bar", () => {
   it("opens the screen named in the address", async () => {
     window.history.replaceState(null, "", "#project=example&screen=dashboard");
     render(<App />);
-    await waitFor(() => expect(actionBar()).toHaveTextContent("03 / 3 Populated dashboard"));
+    await waitFor(() =>
+      expect(actionBar()).toHaveTextContent("03 / 3 Populated dashboard"),
+    );
   });
 });

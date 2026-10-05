@@ -65,7 +65,8 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 const ROUTE =
   /^\/api\/projects\/([^/]+)\/feedback(?:\/(import)|\/([^/]+))?\/?$/;
 
-const CAPTURE_ROUTE = /^\/api\/projects\/([^/]+)\/captures\/([^/]+)\/([^/]+)\/?$/;
+const CAPTURE_ROUTE =
+  /^\/api\/projects\/([^/]+)\/captures\/([^/]+)\/([^/]+)\/?$/;
 
 export type ApiOptions = {
   storage: FeedbackStorage;
@@ -88,13 +89,15 @@ export async function handleApi(
       throw new HttpError(403, "Unexpected Host header.");
     }
     if (url.pathname === "/api/projects" && catalog) {
-      if (request.method !== "GET") throw new HttpError(405, "Method not allowed.");
+      if (request.method !== "GET")
+        throw new HttpError(405, "Method not allowed.");
       sendJson(response, 200, await catalog.list());
       return true;
     }
     const capture = CAPTURE_ROUTE.exec(url.pathname);
     if (capture && catalog) {
-      if (request.method !== "GET") throw new HttpError(405, "Method not allowed.");
+      if (request.method !== "GET")
+        throw new HttpError(405, "Method not allowed.");
       const [projectId, version, screenId] = capture
         .slice(1)
         .map((part) => decodeURIComponent(part!));
@@ -124,7 +127,9 @@ export async function handleApi(
     }
 
     if (!id && !isImport && method === "GET") {
-      sendJson(response, 200, { feedback: await storage.listFeedback(projectId) });
+      sendJson(response, 200, {
+        feedback: await storage.listFeedback(projectId),
+      });
     } else if (!id && !isImport && method === "POST") {
       const created = await storage.createFeedback(
         projectId,
@@ -133,7 +138,11 @@ export async function handleApi(
       sendJson(response, 201, { feedback: created });
     } else if (isImport && method === "POST") {
       const body = importBodySchema.parse(await readJsonBody(request));
-      sendJson(response, 200, await storage.importFeedback(projectId, body.records));
+      sendJson(
+        response,
+        200,
+        await storage.importFeedback(projectId, body.records),
+      );
     } else if (id && method === "PATCH") {
       const updated = await storage.updateFeedback(
         projectId,
@@ -152,12 +161,18 @@ export async function handleApi(
     if (error instanceof HttpError) {
       sendJson(response, error.status, { error: error.message });
     } else if (error instanceof z.ZodError) {
-      sendJson(response, 400, { error: "Invalid feedback.", issues: error.issues });
+      sendJson(response, 400, {
+        error: "Invalid feedback.",
+        issues: error.issues,
+      });
     } else if (error instanceof FeedbackConflictError) {
       sendJson(response, 409, { error: error.message, current: error.current });
     } else if (error instanceof FeedbackNotFoundError) {
       sendJson(response, 404, { error: error.message });
-    } else if (error instanceof Error && error.message.startsWith("Invalid project id")) {
+    } else if (
+      error instanceof Error &&
+      error.message.startsWith("Invalid project id")
+    ) {
       sendJson(response, 400, { error: error.message });
     } else {
       sendJson(response, 500, {

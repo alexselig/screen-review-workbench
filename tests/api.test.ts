@@ -21,8 +21,7 @@ const input = {
   x: 0.5,
   y: 0.5,
   note: "Tighten the hero.",
-  category: "LAYOUT",
-  priority: "POLISH",
+  tags: ["P2"],
 };
 
 beforeEach(async () => {
@@ -102,7 +101,10 @@ describe("feedback API", () => {
   });
 
   it("rejects non-JSON bodies, invalid input and unknown records", async () => {
-    expect((await send("POST", base, input, { "content-type": "text/plain" })).status).toBe(415);
+    expect(
+      (await send("POST", base, input, { "content-type": "text/plain" }))
+        .status,
+    ).toBe(415);
     expect((await send("POST", base, { ...input, x: 4 })).status).toBe(400);
     expect(
       (
@@ -135,8 +137,7 @@ describe("feedback API", () => {
       x: 0.2,
       y: 0.3,
       note: "From the browser",
-      category: "CONTENT",
-      priority: "IMPORTANT",
+      tags: ["P1"],
       status: "OPEN",
       createdAt: "2026-10-05T19:00:00.000Z",
       updatedAt: "2026-10-05T19:00:00.000Z",

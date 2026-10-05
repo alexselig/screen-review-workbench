@@ -76,7 +76,7 @@ describe("export scope", () => {
     fireEvent.change(screen.getByRole("combobox", { name: "Category filter" }), {
       target: { value: "CONTENT" },
     });
-    expect(screen.getByText(/^Export:/)).toHaveTextContent(
+    expect(document.querySelector(".feedback-export-scope")).toHaveTextContent(
       "All 2 screens · version live · filtered by category Content · 1 item",
     );
     fireEvent.click(screen.getByRole("button", { name: "Export Markdown" }));

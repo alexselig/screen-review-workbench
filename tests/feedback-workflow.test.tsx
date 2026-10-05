@@ -90,6 +90,21 @@ describe("feedback workflow integration", () => {
     expect(cardDot.className).toBe(pin.className.replace("feedback-pin ", ""));
   });
 
+  it("guides an empty screen and shows a cancellable pin mode", async () => {
+    render(<App />);
+    expect(await screen.findByText(/No feedback on this screen yet/)).toBeInTheDocument();
+    const add = screen.getByRole("button", { name: "Add feedback" });
+    await waitFor(() => expect(add).toBeEnabled());
+
+    fireEvent.click(add);
+    expect(add).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText(/Click the screen to place a pin/)).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(add).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByText(/Click the screen to place a pin/)).toBeNull();
+  });
+
   it("shows a load error with retry instead of an empty review", async () => {
     api.failNext(500, "feedback.json contains invalid JSON; restore or repair it.");
     render(<App />);

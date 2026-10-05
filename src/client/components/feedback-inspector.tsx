@@ -188,6 +188,7 @@ export function FeedbackInspector({
   onExport,
   onVisibleFeedbackChange,
   ready = true,
+  adding = false,
 }: {
   projectId: string;
   screens: ReviewScreen[];
@@ -209,6 +210,7 @@ export function FeedbackInspector({
   onExport?: (format: "json" | "markdown", contents: string) => void;
   onVisibleFeedbackChange?: (feedback: FeedbackRecord[]) => void;
   ready?: boolean;
+  adding?: boolean;
 }) {
   const initialRecoveries = useMemo(
     () => readRecoveryEntries(projectId),
@@ -559,6 +561,7 @@ export function FeedbackInspector({
           <strong>{visibleFeedback.length} visible</strong>
         </div>
         <button
+          aria-pressed={adding}
           className="feedback-add-button"
           disabled={!ready}
           onClick={onStartPin}
@@ -630,6 +633,14 @@ export function FeedbackInspector({
           </select>
         </label>
       </div>
+
+      {visibleFeedback.length === 0 ? (
+        <p className="feedback-empty">
+          {screenFeedback.length === 0
+            ? "No feedback on this screen yet. Choose Add feedback, then click the screen to drop pin 1."
+            : "No comments on this screen match these filters."}
+        </p>
+      ) : null}
 
       <ol className="feedback-list">
         {visibleFeedback.map((item) => (
@@ -780,12 +791,22 @@ export function FeedbackInspector({
       ) : null}
 
       <footer className="feedback-export-actions">
-        <p className="feedback-export-scope">Export: {exportScope}</p>
-        <button onClick={() => exportFeedback("json")} type="button">
-          Export JSON
+        <p className="feedback-export-scope">
+          <strong>Export</strong> {exportScope}
+        </p>
+        <button
+          aria-label="Export JSON"
+          onClick={() => exportFeedback("json")}
+          type="button"
+        >
+          JSON
         </button>
-        <button onClick={() => exportFeedback("markdown")} type="button">
-          Export Markdown
+        <button
+          aria-label="Export Markdown"
+          onClick={() => exportFeedback("markdown")}
+          type="button"
+        >
+          Markdown
         </button>
       </footer>
     </aside>

@@ -98,6 +98,15 @@ export function App() {
   }, [loadAttempt]);
 
   useEffect(() => {
+    if (!addingFeedback || draftPin) return;
+    const cancel = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAddingFeedback(false);
+    };
+    window.addEventListener("keydown", cancel);
+    return () => window.removeEventListener("keydown", cancel);
+  }, [addingFeedback, draftPin]);
+
+  useEffect(() => {
     if (!draftPin) return;
     document
       .querySelector<HTMLTextAreaElement>('textarea[aria-label="Feedback note"]')
@@ -217,6 +226,7 @@ export function App() {
       }}
       onCreate={createFeedback}
       ready={ready}
+      adding={addingFeedback}
       onRecoverDraft={(pin) => {
         setAddingFeedback(true);
         setDraftPin(pin);
@@ -250,6 +260,11 @@ export function App() {
       >
         View fullscreen
       </button>
+      {addingFeedback && !draftPin ? (
+        <p className="canvas-hint" role="status">
+          Click the screen to place a pin · Esc to cancel
+        </p>
+      ) : null}
       <div
         className="screen-frame"
         data-testid="screen-frame"

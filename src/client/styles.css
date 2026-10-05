@@ -126,6 +126,10 @@ h1 {
 
 .rail-mode-button,
 .rail-pin-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
   min-width: 44px;
   min-height: 44px;
   border: 0;
@@ -220,6 +224,27 @@ h1 {
 
 .review-canvas[data-adding-feedback="true"] .screen-frame {
   cursor: crosshair;
+}
+
+.screen-frame {
+  container-type: inline-size;
+}
+
+.screen-frame .empty-canvas h2 {
+  font-size: clamp(18px, 6.5cqi, 58px);
+}
+
+.canvas-hint {
+  position: absolute;
+  top: 16px;
+  left: 32px;
+  z-index: 4;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--bauhaus-blue);
+  background: var(--blue-soft);
+  color: var(--bauhaus-blue);
+  font-weight: 700;
 }
 
 .screen-frame-size {
@@ -383,7 +408,7 @@ h1 {
 .feedback-delete-start,
 .feedback-delete-confirm button,
 .feedback-export-actions button {
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--ink);
   background: var(--surface);
@@ -394,6 +419,29 @@ h1 {
 
 .feedback-add-button {
   background: var(--bauhaus-orange);
+  white-space: nowrap;
+}
+
+.feedback-add-button[aria-pressed="true"] {
+  border-color: var(--bauhaus-blue);
+  background: var(--bauhaus-blue);
+  color: var(--on-blue);
+}
+
+.feedback-add-button:disabled {
+  border-color: var(--line-strong);
+  background: var(--surface-alt);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.feedback-empty {
+  margin: 0;
+  padding: 16px;
+  border: 1px dashed var(--line-strong);
+  background: var(--surface);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .feedback-filters {
@@ -426,7 +474,7 @@ h1 {
 
 .feedback-filters select,
 .feedback-editor select {
-  min-height: 36px;
+  min-height: 44px;
   padding: 0 6px;
   font-size: 12px;
 }
@@ -600,19 +648,96 @@ h1 {
   color: var(--bauhaus-blue);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1200px) {
   .workbench-grid {
-    grid-template-columns: 64px minmax(0, 1fr);
+    grid-template-columns: 232px minmax(0, 1fr) 300px;
+  }
+}
+
+/* Tablet and phone: stack screens, canvas, then feedback so review still works. */
+@media (max-width: 900px) {
+  .workbench-grid,
+  .workbench-grid[data-rail-mode] {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
   }
 
-  .screen-rail {
-    grid-template-columns: 1fr;
-    padding: 16px 8px;
+  .screen-rail,
+  .screen-rail[data-mode="compact"],
+  .screen-rail[data-mode="compact"][data-expanded="true"] {
+    width: auto;
+    padding: 0 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--ink);
+    box-shadow: none;
   }
 
-  .screen-rail span,
-  .feedback-panel {
+  .rail-toolbar,
+  .screen-rail h2 {
     display: none;
+  }
+
+  .screen-rail ol {
+    display: flex;
+    gap: 0;
+    overflow-x: auto;
+  }
+
+  .screen-rail li {
+    flex: none;
+  }
+
+  .screen-rail li button,
+  .screen-rail[data-mode="compact"]:not([data-expanded="true"]) li button {
+    width: auto;
+    min-height: 56px;
+    grid-template-columns: auto auto;
+    gap: 8px;
+    padding: 8px 16px;
+    border-bottom: 0;
+  }
+
+  .screen-rail li button[aria-current="page"] {
+    box-shadow: inset 0 -4px var(--bauhaus-blue);
+  }
+
+  .screen-rail .screen-name,
+  .screen-rail[data-mode="compact"]:not([data-expanded="true"]) .screen-name {
+    display: inline;
+  }
+
+  .screen-rail .feedback-marker {
+    display: none;
+  }
+
+  .review-canvas {
+    height: min(70vh, 640px);
+    padding: 72px 16px 16px;
+  }
+
+  .feedback-panel {
+    border-top: 1px solid var(--ink);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .screen-rail .screen-name,
+  .screen-rail[data-mode="compact"]:not([data-expanded="true"]) .screen-name {
+    display: none;
+  }
+
+  .screen-rail li button[aria-current="page"] .screen-name {
+    display: inline;
+  }
+
+  .review-canvas {
+    height: 360px;
+  }
+
+  .canvas-hint {
+    right: 16px;
+    left: 16px;
   }
 }
 

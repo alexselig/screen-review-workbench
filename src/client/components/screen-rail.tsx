@@ -39,8 +39,9 @@ export function ScreenRail({
     >
       <div className="rail-toolbar">
         <button
-          aria-label={mode === "wide" ? "Use numbered navigation" : "Use named navigation"}
+          aria-label={mode === "wide" ? undefined : "Show screen names"}
           className="rail-mode-button"
+          title={mode === "wide" ? "Show numbers only" : "Show screen names"}
           onClick={() => {
             setPinned(false);
             setTemporaryExpanded(false);
@@ -48,7 +49,13 @@ export function ScreenRail({
           }}
           type="button"
         >
-          {mode === "wide" ? "−" : "+"}
+          {mode === "wide" ? (
+            <>
+              <span aria-hidden="true">«</span> Numbers only
+            </>
+          ) : (
+            <span aria-hidden="true">»</span>
+          )}
         </button>
         {mode === "compact" && expanded ? (
           <button

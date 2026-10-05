@@ -380,6 +380,8 @@ h1 {
 
 .feedback-add-button,
 .feedback-cancel-button,
+.feedback-delete-start,
+.feedback-delete-confirm button,
 .feedback-export-actions button {
   min-height: 40px;
   padding: 0 12px;
@@ -496,6 +498,7 @@ h1 {
 }
 
 .feedback-export-actions {
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: auto;
   padding-top: 16px;
@@ -504,6 +507,42 @@ h1 {
 
 .feedback-export-actions button {
   flex: 1;
+}
+
+.feedback-export-scope {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.feedback-delete-start {
+  justify-self: start;
+  border-color: var(--destructive);
+  color: var(--destructive);
+}
+
+.feedback-delete-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--destructive);
+  background: var(--destructive-soft);
+}
+
+.feedback-delete-confirm span {
+  flex-basis: 100%;
+  color: var(--destructive);
+  font-weight: 600;
+}
+
+.feedback-delete-confirm .feedback-delete-button {
+  border-color: var(--destructive);
+  background: var(--destructive);
+  color: var(--surface);
 }
 
 .feedback-pin-layer {
@@ -581,8 +620,8 @@ h1 {
   *,
   *::before,
   *::after {
-    animation: none !important;
-    transition: none !important;
+    animation: none;
+    transition: none;
   }
 }
 

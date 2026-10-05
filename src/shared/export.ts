@@ -5,6 +5,11 @@ export type FeedbackExportInput = {
   projectId: string;
   screens: ReviewScreen[];
   feedback: FeedbackRecord[];
+  // Full record set used for pin numbers, so filtered exports keep the same
+  // numbers the reviewer sees on screen. Defaults to `feedback`.
+  allFeedback?: FeedbackRecord[];
+  // Human-readable description of what the export covers.
+  scope?: string;
 };
 
 type ExportFeedback = FeedbackRecord & {
@@ -41,7 +46,7 @@ export function createPinNumbers(feedback: FeedbackRecord[]) {
 
 function safeFeedback(input: FeedbackExportInput): ExportFeedback[] {
   const screenById = new Map(input.screens.map((screen) => [screen.id, screen]));
-  const pinNumbers = createPinNumbers(input.feedback);
+  const pinNumbers = createPinNumbers(input.allFeedback ?? input.feedback);
   return input.feedback
     .map((item) => {
       const screen = screenById.get(item.screenId);
@@ -67,6 +72,7 @@ export function serializeJson(input: FeedbackExportInput): string {
   return `${JSON.stringify(
     {
       projectId: input.projectId,
+      ...(input.scope ? { scope: input.scope } : {}),
       feedback: safeFeedback(input),
     },
     null,
@@ -93,6 +99,7 @@ export function serializeMarkdown(input: FeedbackExportInput): string {
   const lines = [
     `# ${escapeMarkdown(input.projectId)} Screen Review Feedback`,
     "",
+    ...(input.scope ? [`_Scope: ${escapeMarkdown(input.scope)}_`, ""] : []),
   ];
   let currentScreen = "";
 

@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
 } from "react";
@@ -27,6 +28,7 @@ import {
   migrateLegacyFeedback,
   patchFeedback,
   postFeedback,
+  removeFeedback,
 } from "./feedback-api";
 
 const projectId = "example";
@@ -110,6 +112,26 @@ export function App() {
     );
   }, []);
 
+  // Writes run one at a time. Each records the revision it replaced, so a
+  // write queued behind this tab's own save is rebased onto that save instead
+  // of failing; a change made elsewhere still surfaces as a 409 conflict.
+  const mutationChainRef = useRef<Promise<unknown>>(Promise.resolve());
+  const ownRevisionsRef = useRef(new Map<string, string>());
+
+  const enqueue = useCallback(<T,>(operation: () => Promise<T>) => {
+    const run = mutationChainRef.current.catch(() => undefined).then(operation);
+    mutationChainRef.current = run;
+    return run;
+  }, []);
+
+  const latestOwnRevision = useCallback((id: string, expected: string) => {
+    let revision = expected;
+    while (ownRevisionsRef.current.has(`${id}@${revision}`)) {
+      revision = ownRevisionsRef.current.get(`${id}@${revision}`)!;
+    }
+    return revision;
+  }, []);
+
   const withConflictRefresh = useCallback(
     async <T,>(operation: () => Promise<T>) => {
       try {
@@ -125,22 +147,48 @@ export function App() {
   );
 
   const createFeedback = useCallback(
-    async (input: CreateFeedbackInput) => {
-      const created = await postFeedback(projectId, input);
-      upsertRecord(created);
-      return created;
-    },
-    [upsertRecord],
+    (input: CreateFeedbackInput) =>
+      enqueue(async () => {
+        const created = await postFeedback(projectId, input);
+        upsertRecord(created);
+        return created;
+      }),
+    [enqueue, upsertRecord],
   );
 
   const updateFeedback = useCallback(
     (id: string, input: UpdateFeedbackInput) =>
-      withConflictRefresh(async () => {
-        const updated = await patchFeedback(projectId, id, input);
-        upsertRecord(updated);
-        return updated;
-      }),
-    [upsertRecord, withConflictRefresh],
+      enqueue(() =>
+        withConflictRefresh(async () => {
+          const expectedUpdatedAt = latestOwnRevision(id, input.expectedUpdatedAt);
+          const updated = await patchFeedback(projectId, id, {
+            ...input,
+            expectedUpdatedAt,
+          });
+          ownRevisionsRef.current.set(`${id}@${expectedUpdatedAt}`, updated.updatedAt);
+          upsertRecord(updated);
+          return updated;
+        }),
+      ),
+    [enqueue, latestOwnRevision, upsertRecord, withConflictRefresh],
+  );
+
+  const deleteFeedback = useCallback(
+    (id: string, expectedUpdatedAt: string) =>
+      enqueue(() =>
+        withConflictRefresh(async () => {
+          await removeFeedback(
+            projectId,
+            id,
+            latestOwnRevision(id, expectedUpdatedAt),
+          );
+          setFeedbackRecords((current) =>
+            current.filter((item) => item.id !== id),
+          );
+          setSelectedFeedbackId((current) => (current === id ? null : current));
+        }),
+      ),
+    [enqueue, latestOwnRevision, withConflictRefresh],
   );
 
   const selectScreen = useCallback((id: string) => {
@@ -180,6 +228,7 @@ export function App() {
         setSelectedFeedbackId(null);
       }}
       onUpdate={updateFeedback}
+      onDelete={deleteFeedback}
       onVisibleFeedbackChange={setVisibleFeedback}
       projectId={projectId}
       screens={screens}

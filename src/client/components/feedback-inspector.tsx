@@ -15,6 +15,9 @@ import {
   FEEDBACK_CATEGORIES,
   FEEDBACK_PRIORITIES,
   FEEDBACK_STATUSES,
+  feedbackCategorySchema,
+  feedbackPrioritySchema,
+  normalizedCoordinateSchema,
   type CreateFeedbackInput,
   type FeedbackCategory,
   type FeedbackPriority,
@@ -23,20 +26,23 @@ import {
   type UpdateFeedbackInput,
 } from "../../shared/feedback";
 import type { ReviewScreen } from "../../shared/manifest";
+import { z } from "zod";
 
 type Pin = { x: number; y: number };
 
-type RecoveryEntry = {
-  kind: "create" | "update";
-  screenId: string;
-  version: string;
-  feedbackId?: string;
-  x?: number;
-  y?: number;
-  note: string;
-  category: FeedbackCategory;
-  priority: FeedbackPriority;
-};
+const recoveryEntrySchema = z.object({
+  kind: z.enum(["create", "update"]),
+  screenId: z.string().min(1),
+  version: z.string().min(1),
+  feedbackId: z.string().optional(),
+  x: normalizedCoordinateSchema.optional(),
+  y: normalizedCoordinateSchema.optional(),
+  note: z.string(),
+  category: feedbackCategorySchema,
+  priority: feedbackPrioritySchema,
+});
+
+type RecoveryEntry = z.infer<typeof recoveryEntrySchema>;
 
 type RecoveryEntries = Record<string, RecoveryEntry>;
 
@@ -95,9 +101,15 @@ function readRecoveryEntries(projectId: string): RecoveryEntries {
   if (!raw) return {};
   try {
     const parsed: unknown = JSON.parse(raw);
-    return typeof parsed === "object" && parsed !== null
-      ? (parsed as RecoveryEntries)
-      : {};
+    if (typeof parsed !== "object" || parsed === null) return {};
+    // Drop malformed entries one by one so a single bad draft cannot break
+    // the editor or hide the others.
+    const entries: RecoveryEntries = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      const entry = recoveryEntrySchema.safeParse(value);
+      if (entry.success) entries[key] = entry.data;
+    }
+    return entries;
   } catch {
     return {};
   }
@@ -172,6 +184,7 @@ export function FeedbackInspector({
   onSelectFeedback,
   onCreate,
   onUpdate,
+  onDelete,
   onExport,
   onVisibleFeedbackChange,
   ready = true,
@@ -192,6 +205,7 @@ export function FeedbackInspector({
     id: string,
     input: UpdateFeedbackInput,
   ) => Promise<FeedbackRecord>;
+  onDelete?: (id: string, expectedUpdatedAt: string) => Promise<void>;
   onExport?: (format: "json" | "markdown", contents: string) => void;
   onVisibleFeedbackChange?: (feedback: FeedbackRecord[]) => void;
   ready?: boolean;
@@ -229,6 +243,7 @@ export function FeedbackInspector({
   });
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [saveMessage, setSaveMessage] = useState("");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revisionRef = useRef(0);
@@ -264,6 +279,10 @@ export function FeedbackInspector({
     visibleFeedback.find((item) => item.id === selectedFeedbackId) ?? null;
 
   latestRecordRef.current = selectedRecord;
+
+  useEffect(() => {
+    setConfirmingDelete(false);
+  }, [selectedFeedbackId]);
 
   useEffect(() => {
     onVisibleFeedbackChange?.(visibleFeedback);
@@ -474,8 +493,29 @@ export function FeedbackInspector({
     void flushStatus(status);
   }
 
+  const matchesFilters = (item: FeedbackRecord) =>
+    (!filters.category || item.category === filters.category) &&
+    (!filters.priority || item.priority === filters.priority) &&
+    (!filters.status || item.status === filters.status);
+  const versionFeedback = feedback.filter((item) => item.version === version);
+  const exportRecords = versionFeedback.filter(matchesFilters);
+  const activeFilters = [
+    filters.category && `category ${readable(filters.category)}`,
+    filters.priority && `priority ${readable(filters.priority)}`,
+    filters.status && `status ${readable(filters.status)}`,
+  ].filter(Boolean);
+  const exportScope = `All ${screens.length} screens · version ${version} · ${
+    activeFilters.length ? `filtered by ${activeFilters.join(", ")}` : "no filters"
+  } · ${exportRecords.length} item${exportRecords.length === 1 ? "" : "s"}`;
+
   function exportFeedback(format: "json" | "markdown") {
-    const input = { projectId, screens, feedback: visibleFeedback };
+    const input = {
+      projectId,
+      screens,
+      feedback: exportRecords,
+      allFeedback: versionFeedback,
+      scope: exportScope,
+    };
     const contents =
       format === "json" ? serializeJson(input) : serializeMarkdown(input);
     if (onExport) {
@@ -487,6 +527,26 @@ export function FeedbackInspector({
       `${projectId}-feedback.${format === "json" ? "json" : "md"}`,
       format === "json" ? "application/json" : "text/markdown",
     );
+  }
+
+  async function confirmDelete() {
+    const record = latestRecordRef.current;
+    if (!record || !onDelete) return;
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    setSaveMessage("Deleting…");
+    try {
+      await onDelete(record.id, record.updatedAt);
+      writeRecovery(projectId, updateRecoveryKey(record.id), null);
+      setConfirmingDelete(false);
+      setSaveMessage("Deleted");
+    } catch (error) {
+      setSaveMessage(
+        error instanceof Error ? `Retry required: ${error.message}` : "Retry required",
+      );
+    }
   }
 
   const showEditor = Boolean(effectiveDraftPin || visibleSelectedRecord);
@@ -666,6 +726,35 @@ export function FeedbackInspector({
               </select>
             </label>
           ) : null}
+          {visibleSelectedRecord && onDelete ? (
+            confirmingDelete ? (
+              <div
+                className="feedback-delete-confirm"
+                role="group"
+                aria-label="Confirm delete"
+              >
+                <span>Delete this comment and its pin?</span>
+                <button
+                  className="feedback-delete-button"
+                  onClick={() => void confirmDelete()}
+                  type="button"
+                >
+                  Confirm delete
+                </button>
+                <button onClick={() => setConfirmingDelete(false)} type="button">
+                  Keep
+                </button>
+              </div>
+            ) : (
+              <button
+                className="feedback-delete-start"
+                onClick={() => setConfirmingDelete(true)}
+                type="button"
+              >
+                Delete comment
+              </button>
+            )
+          ) : null}
           {effectiveDraftPin ? (
             <button
               className="feedback-cancel-button"
@@ -691,6 +780,7 @@ export function FeedbackInspector({
       ) : null}
 
       <footer className="feedback-export-actions">
+        <p className="feedback-export-scope">Export: {exportScope}</p>
         <button onClick={() => exportFeedback("json")} type="button">
           Export JSON
         </button>

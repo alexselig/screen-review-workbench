@@ -759,6 +759,7 @@ h1 {
 }
 
 .feedback-add-button {
+  border-color: var(--bauhaus-orange);
   background: var(--bauhaus-orange);
   white-space: nowrap;
 }

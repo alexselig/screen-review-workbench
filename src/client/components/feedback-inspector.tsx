@@ -227,10 +227,21 @@ export function FeedbackInspector({
     null,
   );
   const [deleteMessage, setDeleteMessage] = useState("");
+  // Where the open editor sits in the list. It is captured when editing
+  // starts and held until the card closes, so retagging, changing status,
+  // or a new pin's first save never moves (and remounts) the note box.
+  const [heldSlot, setHeldSlot] = useState<{
+    key: string;
+    status: FeedbackStatus;
+    priority: string | null;
+  } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revisionRef = useRef(0);
   const latestRecordRef = useRef<FeedbackRecord | null>(null);
+  const creatingRef = useRef<Promise<FeedbackRecord> | null>(null);
+  const adoptedIdRef = useRef<string | null>(null);
+  const editorRef = useRef(editor);
   const effectiveDraftPin = draftPin ?? recoveredPin;
 
   const screenFeedback = useMemo(
@@ -255,6 +266,7 @@ export function FeedbackInspector({
     visibleFeedback.find((item) => item.id === selectedFeedbackId) ?? null;
 
   latestRecordRef.current = selectedRecord;
+  editorRef.current = editor;
 
   useEffect(() => {
     setConfirmingDeleteId(null);
@@ -337,10 +349,15 @@ export function FeedbackInspector({
   }
 
   async function saveEditor(revision: number, nextEditor: EditorState) {
-    const record = latestRecordRef.current;
+    let record = latestRecordRef.current;
     const pin = effectiveDraftPin;
     if (!nextEditor.note.trim() || (!record && !pin)) return;
     setSaveMessage("Saving…");
+    // A save that fires while the pin is still being created updates that
+    // record instead of creating a second one.
+    if (!record && creatingRef.current) {
+      record = await creatingRef.current.catch(() => null);
+    }
     try {
       if (record) {
         const patch: UpdateFeedbackInput["patch"] = {};
@@ -371,7 +388,7 @@ export function FeedbackInspector({
           }
         }
       } else if (pin) {
-        const created = await onCreate({
+        const creating = onCreate({
           clientMutationId: crypto.randomUUID(),
           screenId: selectedScreenId,
           version,
@@ -381,16 +398,36 @@ export function FeedbackInspector({
           tags: nextEditor.tags,
           status: "OPEN",
         });
+        creatingRef.current = creating;
+        let created: FeedbackRecord;
+        try {
+          created = await creating;
+        } finally {
+          if (creatingRef.current === creating) creatingRef.current = null;
+        }
+        latestRecordRef.current = created;
+        adoptedIdRef.current = created.id;
+        // Always adopt the new record, even if the reviewer kept typing, so
+        // later saves update it rather than creating a duplicate pin.
+        writeRecovery(
+          projectId,
+          createRecoveryKey(version, selectedScreenId),
+          null,
+        );
+        setRecoveredPin(null);
+        onSelectFeedback(created.id);
+        onCancelDraft();
         if (revision === revisionRef.current) {
-          writeRecovery(
-            projectId,
-            createRecoveryKey(version, selectedScreenId),
-            null,
-          );
-          setRecoveredPin(null);
-          onSelectFeedback(created.id);
-          onCancelDraft();
           setSaveMessage("Saved");
+        } else {
+          writeRecovery(projectId, updateRecoveryKey(created.id), {
+            kind: "update",
+            screenId: selectedScreenId,
+            version,
+            feedbackId: created.id,
+            note: editorRef.current.note,
+            tags: editorRef.current.tags,
+          });
         }
       }
     } catch (error) {
@@ -414,6 +451,7 @@ export function FeedbackInspector({
 
   function updateEditor(patch: Partial<Pick<EditorState, "note" | "tags">>) {
     const next = { ...editor, ...patch };
+    editorRef.current = next;
     setEditor(next);
     scheduleSave(next);
   }
@@ -621,7 +659,7 @@ export function FeedbackInspector({
   function renderItem(item: FeedbackRecord) {
     if (item.id === editingRecord?.id) {
       return (
-        <li className="is-editing" key={item.id}>
+        <li className="is-editing" key="editor">
           {editorSection}
           {deleteConfirm(item)}
         </li>
@@ -668,6 +706,34 @@ export function FeedbackInspector({
   // The comment being edited renders as the editor in its own list slot, so it
   // never appears twice (once as a saved card and again in the editor).
   const editingRecord = effectiveDraftPin ? null : visibleSelectedRecord;
+  const slotKey = effectiveDraftPin ? "draft" : (editingRecord?.id ?? null);
+  if ((heldSlot?.key ?? null) !== slotKey) {
+    if (!slotKey) {
+      setHeldSlot(null);
+    } else if (heldSlot?.key === "draft" && adoptedIdRef.current === slotKey) {
+      setHeldSlot({ ...heldSlot, key: slotKey });
+    } else {
+      setHeldSlot({
+        key: slotKey,
+        status: editingRecord?.status ?? "OPEN",
+        priority: priorityTag(editingRecord?.tags ?? editor.tags),
+      });
+    }
+  }
+  const editorSlot =
+    heldSlot && heldSlot.key === slotKey
+      ? heldSlot
+      : slotKey
+        ? {
+            key: slotKey,
+            status: editingRecord?.status ?? "OPEN",
+            priority: priorityTag(editingRecord?.tags ?? editor.tags),
+          }
+        : null;
+  const slotOf = (item: FeedbackRecord) =>
+    item.id === editingRecord?.id && editorSlot
+      ? editorSlot
+      : { status: item.status, priority: priorityTag(item.tags) };
   const editorSection = (
     <section className="feedback-editor" aria-label="Feedback editor">
       <header className="feedback-editor-header">
@@ -814,11 +880,20 @@ export function FeedbackInspector({
 
       {STATUS_SECTIONS.map((section) => {
         const items = visibleFeedback.filter(
-          (item) => item.status === section.status,
+          (item) => slotOf(item).status === section.status,
         );
-        if (items.length === 0) return null;
+        const draftHere =
+          effectiveDraftPin && editorSlot?.status === section.status
+            ? editorSlot
+            : null;
+        if (items.length === 0 && !draftHere) return null;
+        const draftRow = (
+          <li className="is-editing" key="editor">
+            {editorSection}
+          </li>
+        );
         // Comments without a priority tag sit after the P groups, unheaded.
-        const untagged = items.filter((item) => !priorityTag(item.tags));
+        const untagged = items.filter((item) => !slotOf(item).priority);
         const pinsHidden = hiddenPinStatuses.includes(section.status);
         return (
           <section
@@ -843,9 +918,10 @@ export function FeedbackInspector({
             </h3>
             {PRIORITY_TAGS.map((priority) => {
               const group = items.filter(
-                (item) => priorityTag(item.tags) === priority,
+                (item) => slotOf(item).priority === priority,
               );
-              if (group.length === 0) return null;
+              const withDraft = draftHere?.priority === priority;
+              if (group.length === 0 && !withDraft) return null;
               return (
                 <div
                   aria-label={`${section.label} ${priority}`}
@@ -859,20 +935,26 @@ export function FeedbackInspector({
                     {priority}
                     <span className="feedback-count">{group.length}</span>
                   </h4>
-                  <ol className="feedback-list">{group.map(renderItem)}</ol>
+                  <ol className="feedback-list">
+                    {[
+                      ...group.map(renderItem),
+                      ...(withDraft ? [draftRow] : []),
+                    ]}
+                  </ol>
                 </div>
               );
             })}
-            {untagged.length ? (
+            {untagged.length || (draftHere && !draftHere.priority) ? (
               <ol className="feedback-list feedback-list-untagged">
-                {untagged.map(renderItem)}
+                {[
+                  ...untagged.map(renderItem),
+                  ...(draftHere && !draftHere.priority ? [draftRow] : []),
+                ]}
               </ol>
             ) : null}
           </section>
         );
       })}
-
-      {showEditor && !editingRecord ? editorSection : null}
 
       {approval ? (
         <div className="screen-approval">

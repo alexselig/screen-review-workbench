@@ -128,6 +128,40 @@ describe("export scope", () => {
 });
 
 describe("delete", () => {
+  it("collapses an open card with a chevron and deletes from a wide button", async () => {
+    await seed("landing", "Keep me", 0);
+    await seed("landing", "Drop me", 1);
+    render(<App />);
+
+    await selectComment("Keep me");
+    fireEvent.change(screen.getByRole("textbox", { name: "Feedback note" }), {
+      target: { value: "Kept and edited" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Collapse comment 1" }));
+    expect(screen.queryByRole("textbox", { name: "Feedback note" })).toBeNull();
+    await waitFor(async () => {
+      const records = await api.storage.listFeedback("example");
+      expect(records.map((r) => r.note)).toContain("Kept and edited");
+    });
+
+    // Collapsed cards keep the corner X as the delete entry point.
+    expect(
+      screen.getByRole("button", { name: "Delete comment 2" }),
+    ).toHaveClass("feedback-delete-x");
+
+    await selectComment("Drop me");
+    expect(
+      screen.queryByRole("button", { name: "Delete comment 1" }),
+    ).toHaveClass("feedback-delete-x");
+    const wide = screen.getByRole("button", { name: "Delete comment 2" });
+    expect(wide).toHaveClass("feedback-delete-wide");
+    fireEvent.click(wide);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
+    await waitFor(async () => {
+      expect(await api.storage.listFeedback("example")).toHaveLength(1);
+    });
+  });
+
   it("deletes a comment from disk after a second confirmation", async () => {
     await seed("landing", "Remove me", 0);
     render(<App />);

@@ -905,6 +905,51 @@ h1 {
   outline-offset: -2px;
 }
 
+.feedback-collapse {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.feedback-collapse:hover {
+  background: var(--surface-alt);
+  color: var(--ink);
+}
+
+.feedback-collapse:focus-visible {
+  outline: 2px solid var(--bauhaus-blue);
+  outline-offset: -2px;
+}
+
+.feedback-delete-wide {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 4px;
+  border: 1px solid var(--destructive);
+  background: var(--surface);
+  color: var(--destructive);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.feedback-delete-wide:hover {
+  background: var(--destructive-soft);
+}
+
+.feedback-delete-wide:focus-visible {
+  outline: 2px solid var(--destructive);
+  outline-offset: 2px;
+}
+
 .feedback-list .feedback-delete-confirm {
   margin-top: 4px;
 }

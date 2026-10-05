@@ -576,6 +576,56 @@ export function FeedbackInspector({
     );
   }
 
+  function collapseEditor(item: FeedbackRecord) {
+    // Save any pending note edit before the card collapses.
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+      void saveEditor(revisionRef.current, editor);
+    }
+    setConfirmingDeleteId(null);
+    onSelectFeedback(null);
+    document.getElementById(feedbackPinId(item.id))?.focus();
+  }
+
+  function collapseButton(item: FeedbackRecord) {
+    return (
+      <button
+        aria-label={`Collapse comment ${pinNumbers.get(item.id) ?? 0}`}
+        className="feedback-collapse"
+        onClick={() => collapseEditor(item)}
+        title="Collapse"
+        type="button"
+      >
+        <svg aria-hidden="true" height="14" viewBox="0 0 14 14" width="14">
+          <path
+            d="M2.5 9.5 7 5l4.5 4.5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+          />
+        </svg>
+      </button>
+    );
+  }
+
+  function deleteBar(item: FeedbackRecord) {
+    if (!onDelete || confirmingDeleteId === item.id) return null;
+    return (
+      <button
+        aria-label={`Delete comment ${pinNumbers.get(item.id) ?? 0}`}
+        className="feedback-delete-wide"
+        onClick={() => {
+          setDeleteMessage("");
+          setConfirmingDeleteId(item.id);
+        }}
+        type="button"
+      >
+        Delete comment
+      </button>
+    );
+  }
+
   function deleteConfirm(item: FeedbackRecord) {
     if (confirmingDeleteId !== item.id) return null;
     return (
@@ -674,7 +724,7 @@ export function FeedbackInspector({
             ? `Editing pin ${pinNumbers.get(editingRecord.id) ?? 0}`
             : "New pin"}
         </span>
-        {editingRecord ? deleteButton(editingRecord) : null}
+        {editingRecord ? collapseButton(editingRecord) : null}
       </header>
       <label>
         Feedback note
@@ -775,6 +825,7 @@ export function FeedbackInspector({
       <span aria-live="polite" className="feedback-save-state" role="status">
         {saveMessage}
       </span>
+      {editingRecord ? deleteBar(editingRecord) : null}
     </section>
   );
 

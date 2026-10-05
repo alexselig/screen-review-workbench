@@ -95,7 +95,7 @@ describe("export scope", () => {
     fireEvent.click(
       within(dialog).getByRole("radio", { name: "This screen only" }),
     );
-    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Complete" }));
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Fixed" }));
     expect(dialog).toHaveTextContent(
       "Screen 01 Landing · version live · Backlog, In progress, Won't fix · 1 item",
     );

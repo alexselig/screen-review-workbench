@@ -29,7 +29,7 @@ export const STATUS_LABELS: Record<(typeof FEEDBACK_STATUSES)[number], string> =
   {
     OPEN: "Backlog",
     IN_PROGRESS: "In progress",
-    RESOLVED: "Complete",
+    RESOLVED: "Fixed",
     WONT_FIX: "Won't fix",
   };
 export const normalizedCoordinateSchema = z.number().finite().min(0).max(1);

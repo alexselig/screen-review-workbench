@@ -292,7 +292,7 @@ describe("FeedbackInspector", () => {
     expect(screen.queryByRole("combobox", { name: /filter/i })).toBeNull();
     const backlog = screen.getByRole("region", { name: "Backlog" });
     const inProgress = screen.getByRole("region", { name: "In progress" });
-    expect(screen.queryByRole("region", { name: "Complete" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Fixed" })).toBeNull();
 
     expect(
       within(backlog).getByRole("group", { name: "Backlog P1" }),

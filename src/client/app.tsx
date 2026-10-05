@@ -444,11 +444,20 @@ export function App() {
             </a>
           ) : null}
           <button
-            className="canvas-fullscreen-button"
-            onClick={() => setFullscreen((value) => !value)}
+            aria-label="View fullscreen"
+            className="canvas-fullscreen-button icon-button"
+            onClick={() => setFullscreen(true)}
+            title="View fullscreen"
             type="button"
           >
-            {fullscreen ? "Exit fullscreen" : "View fullscreen"}
+            <svg aria-hidden="true" height="18" viewBox="0 0 18 18" width="18">
+              <path
+                d="M2 7V2h5M16 7V2h-5M2 11v5h5M16 11v5h-5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+              />
+            </svg>
           </button>
         </div>
       </header>

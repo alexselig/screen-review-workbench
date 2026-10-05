@@ -59,8 +59,21 @@ export function FullscreenReview({
 
   return (
     <div className="fullscreen-review" data-testid="fullscreen-review">
-      <button className="fullscreen-exit" onClick={onExit} type="button">
-        Exit fullscreen
+      <button
+        aria-label="Exit fullscreen"
+        className="fullscreen-exit icon-button"
+        onClick={onExit}
+        title="Exit fullscreen"
+        type="button"
+      >
+        <svg aria-hidden="true" height="18" viewBox="0 0 18 18" width="18">
+          <path
+            d="M7 2v5H2M11 2v5h5M7 16v-5H2M11 16v-5h5"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+          />
+        </svg>
       </button>
       {panel("navigation", navigation)}
       <div className="fullscreen-canvas">{children}</div>

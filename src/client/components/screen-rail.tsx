@@ -63,25 +63,7 @@ export function ScreenRail({
       onMouseLeave={() => !pinned && setTemporaryExpanded(false)}
     >
       <div className="rail-toolbar">
-        <button
-          aria-label={mode === "wide" ? undefined : "Show screen names"}
-          className="rail-mode-button"
-          title={mode === "wide" ? "Show numbers only" : "Show screen names"}
-          onClick={() => {
-            setPinned(false);
-            setTemporaryExpanded(false);
-            onModeChange(mode === "wide" ? "compact" : "wide");
-          }}
-          type="button"
-        >
-          {mode === "wide" ? (
-            <>
-              <span aria-hidden="true">«</span> Numbers only
-            </>
-          ) : (
-            <span aria-hidden="true">»</span>
-          )}
-        </button>
+        {expanded ? <h2 className="rail-title">Screen index</h2> : null}
         {mode === "compact" && expanded ? (
           <button
             aria-pressed={pinned}
@@ -92,6 +74,27 @@ export function ScreenRail({
             {pinned ? "Unpin" : "Pin"}
           </button>
         ) : null}
+        <button
+          aria-label={mode === "wide" ? "Collapse screen index" : "Expand screen index"}
+          aria-expanded={mode === "wide"}
+          className="rail-mode-button"
+          title={mode === "wide" ? "Collapse to numbers" : "Expand screen index"}
+          onClick={() => {
+            setPinned(false);
+            setTemporaryExpanded(false);
+            onModeChange(mode === "wide" ? "compact" : "wide");
+          }}
+          type="button"
+        >
+          <svg aria-hidden="true" height="16" viewBox="0 0 16 16" width="16">
+            <path
+              d={mode === "wide" ? "M9 3 4 8l5 5M13 3 8 8l5 5" : "M3 3l5 5-5 5M7 3l5 5-5 5"}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+            />
+          </svg>
+        </button>
       </div>
       <ol>
         {screens.map((screen) => {

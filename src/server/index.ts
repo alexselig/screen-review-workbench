@@ -51,6 +51,8 @@ export async function startServer({
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  const running = await startServer();
+  const running = await startServer({
+    port: Number(process.env.PORT ?? "4173"),
+  });
   console.log(`Screen Review Workbench: ${running.origin}`);
 }

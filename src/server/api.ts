@@ -68,6 +68,8 @@ const ROUTE =
 const CAPTURE_ROUTE =
   /^\/api\/projects\/([^/]+)\/captures\/([^/]+)\/([^/]+)\/?$/;
 
+const APPROVALS_ROUTE = /^\/api\/projects\/([^/]+)\/approvals\/?$/;
+
 export type ApiOptions = {
   storage: FeedbackStorage;
   port: number;
@@ -109,6 +111,30 @@ export async function handleApi(
         "x-content-type-options": "nosniff",
       });
       file.open().pipe(response);
+      return true;
+    }
+    const approvals = APPROVALS_ROUTE.exec(url.pathname);
+    if (approvals) {
+      const projectId = decodeURIComponent(approvals[1]!);
+      if (request.method === "GET") {
+        sendJson(response, 200, {
+          approvals: await storage.listApprovals(projectId),
+        });
+      } else if (request.method === "PUT") {
+        try {
+          assertMutationOrigin(request.headers.origin, loopbackOrigins(port));
+        } catch (error) {
+          throw new HttpError(403, (error as Error).message);
+        }
+        sendJson(response, 200, {
+          approvals: await storage.setApproval(
+            projectId,
+            (await readJsonBody(request)) as never,
+          ),
+        });
+      } else {
+        throw new HttpError(405, "Method not allowed.");
+      }
       return true;
     }
     const match = ROUTE.exec(url.pathname);

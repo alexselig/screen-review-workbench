@@ -16,12 +16,15 @@ import {
 import { ExportDialog } from "./components/export-dialog";
 import { FullscreenReview } from "./components/fullscreen-review";
 import { ScreenRail, type RailMode } from "./components/screen-rail";
+import { isApproved, type ScreenApproval } from "../shared/approvals";
 import { createPinNumbers } from "../shared/export";
 import {
+  FEEDBACK_STATUSES,
   isOpenFeedback,
   normalizePinCoordinates,
   type CreateFeedbackInput,
   type FeedbackRecord,
+  type FeedbackStatus,
   type UpdateFeedbackInput,
 } from "../shared/feedback";
 import {
@@ -31,11 +34,13 @@ import {
 } from "../shared/projects";
 import {
   FeedbackApiError,
+  fetchApprovals,
   fetchFeedback,
   fetchProjects,
   migrateLegacyFeedback,
   patchFeedback,
   postFeedback,
+  putApproval,
   removeFeedback,
 } from "./feedback-api";
 
@@ -121,6 +126,23 @@ function useFollowPage(ref: RefObject<HTMLElement | null>, gap = 0) {
 type LoadState =
   { kind: "loading" } | { kind: "ready" } | { kind: "error"; message: string };
 
+const HIDDEN_PINS_KEY = "screen-review-workbench:hidden-pin-statuses";
+
+// Fixed pins are hidden until the reviewer asks to see them.
+export function readHiddenPinStatuses(): FeedbackStatus[] {
+  try {
+    const raw = window.localStorage.getItem(HIDDEN_PINS_KEY);
+    if (raw === null) return ["RESOLVED"];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return ["RESOLVED"];
+    return parsed.filter((value): value is FeedbackStatus =>
+      (FEEDBACK_STATUSES as readonly unknown[]).includes(value),
+    );
+  } catch {
+    return ["RESOLVED"];
+  }
+}
+
 export function App() {
   const [railMode, setRailMode] = useState<RailMode>("wide");
   const initialPlace = useMemo(readPlace, []);
@@ -151,6 +173,12 @@ export function App() {
     useState<FeedbackRecord[]>(feedbackRecords);
   const [addingFeedback, setAddingFeedback] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  // null until loaded; the approve toggle stays disabled until then.
+  const [approvals, setApprovals] = useState<ScreenApproval[] | null>(null);
+  const approvalRequest = useRef(0);
+  const [hiddenPinStatuses, setHiddenPinStatuses] = useState<FeedbackStatus[]>(
+    readHiddenPinStatuses,
+  );
   const [draftPin, setDraftPin] = useState<{ x: number; y: number } | null>(
     null,
   );
@@ -249,6 +277,28 @@ export function App() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadAttempt, projects, project.id]);
+
+  useEffect(() => {
+    if (!projects) return;
+    let cancelled = false;
+    setApprovals(null);
+    fetchApprovals(project.id).then(
+      (list) => {
+        if (!cancelled) setApprovals(list);
+      },
+      (error: unknown) => {
+        if (cancelled) return;
+        setNotice(
+          `Screen approvals could not load: ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
   }, [loadAttempt, projects, project.id]);
 
   useEffect(() => {
@@ -362,6 +412,62 @@ export function App() {
     [enqueue, latestOwnRevision, project.id, withConflictRefresh],
   );
 
+  const togglePinStatus = useCallback((status: FeedbackStatus) => {
+    setHiddenPinStatuses((current) => {
+      const next = current.includes(status)
+        ? current.filter((value) => value !== status)
+        : [...current, status];
+      try {
+        window.localStorage.setItem(HIDDEN_PINS_KEY, JSON.stringify(next));
+      } catch {
+        // Storage can be unavailable; the choice still lasts this session.
+      }
+      return next;
+    });
+  }, []);
+
+  const screenApproved = approvals
+    ? isApproved(approvals, version, selectedId)
+    : false;
+
+  const toggleApproval = useCallback(async () => {
+    if (!approvals) return;
+    const previous = approvals;
+    const request = ++approvalRequest.current;
+    const approved = !isApproved(previous, version, selectedId);
+    setApprovals(
+      approved
+        ? [
+            ...previous,
+            {
+              version,
+              screenId: selectedId,
+              approvedAt: new Date().toISOString(),
+            },
+          ]
+        : previous.filter(
+            (item) => item.version !== version || item.screenId !== selectedId,
+          ),
+    );
+    try {
+      const saved = await putApproval(project.id, {
+        version,
+        screenId: selectedId,
+        approved,
+      });
+      // A quick re-toggle supersedes this response.
+      if (request === approvalRequest.current) setApprovals(saved);
+    } catch (error) {
+      if (request !== approvalRequest.current) return;
+      setApprovals(previous);
+      setNotice(
+        `Approval was not saved: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
+  }, [approvals, project.id, selectedId, version]);
+
   const selectScreen = useCallback((id: string) => {
     setSelectedId(id);
     setAddingFeedback(false);
@@ -465,6 +571,13 @@ export function App() {
       onUpdate={updateFeedback}
       onDelete={deleteFeedback}
       onVisibleFeedbackChange={setVisibleFeedback}
+      hiddenPinStatuses={hiddenPinStatuses}
+      onTogglePinStatus={togglePinStatus}
+      approval={{
+        approved: screenApproved,
+        ready: approvals !== null,
+        onToggle: toggleApproval,
+      }}
       key={project.id}
       projectId={project.id}
       screens={screens}
@@ -551,7 +664,10 @@ export function App() {
           {visibleFeedback
             .filter(
               (item) =>
-                item.screenId === selectedId && item.version === version,
+                item.screenId === selectedId &&
+                item.version === version &&
+                (!hiddenPinStatuses.includes(item.status) ||
+                  item.id === selectedFeedbackId),
             )
             .map((item) => (
               <button

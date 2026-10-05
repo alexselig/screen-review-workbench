@@ -17,11 +17,27 @@ import {
   type FeedbackRecord,
   type UpdateFeedbackInput,
 } from "../shared/feedback";
+import {
+  screenApprovalSchema,
+  setApprovalInputSchema,
+  type ScreenApproval,
+  type SetApprovalInput,
+} from "../shared/approvals";
 
 const feedbackEnvelopeSchema = z.object({
   version: z.literal(1),
   feedback: z.array(feedbackRecordSchema),
 });
+
+const approvalsEnvelopeSchema = z.object({
+  version: z.literal(1),
+  approvals: z.array(screenApprovalSchema),
+});
+
+// Approvals live in their own file, so they queue separately from feedback.
+function approvalsQueue(projectId: string) {
+  return `${projectId}\0approvals`;
+}
 
 type StorageFileSystem = {
   mkdir: typeof mkdir;
@@ -144,20 +160,98 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
   }
 
   async function write(projectId: string, feedback: FeedbackRecord[]) {
-    const target = paths(projectId);
-    await fileSystem.mkdir(target.directory, { recursive: true, mode: 0o700 });
     const envelope = feedbackEnvelopeSchema.parse({ version: 1, feedback });
-    const handle = await fileSystem.open(target.next, "w", 0o600);
+    await writeAtomically(projectId, "feedback.json", envelope);
+  }
+
+  async function writeAtomically(
+    projectId: string,
+    fileName: string,
+    data: unknown,
+  ) {
+    const { directory } = paths(projectId);
+    const current = join(directory, fileName);
+    const next = `${current}.next`;
+    await fileSystem.mkdir(directory, { recursive: true, mode: 0o700 });
+    const handle = await fileSystem.open(next, "w", 0o600);
     try {
-      await handle.writeFile(`${JSON.stringify(envelope, null, 2)}\n`, "utf8");
+      await handle.writeFile(`${JSON.stringify(data, null, 2)}\n`, "utf8");
       await syncAndClose(handle);
     } catch (error) {
       await handle.close().catch(() => undefined);
       throw error;
     }
-    await fileSystem.rename(target.next, target.current);
-    const directoryHandle = await fileSystem.open(target.directory, "r");
+    await fileSystem.rename(next, current);
+    const directoryHandle = await fileSystem.open(directory, "r");
     await syncAndClose(directoryHandle);
+  }
+
+  async function readApprovals(projectId: string): Promise<ScreenApproval[]> {
+    const file = join(paths(projectId).directory, "approvals.json");
+    let contents: string;
+    try {
+      contents = await fileSystem.readFile(file, "utf8");
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
+        return [];
+      }
+      throw error;
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(contents);
+    } catch {
+      throw new Error(`${file} contains invalid JSON; restore or repair it.`);
+    }
+    const result = approvalsEnvelopeSchema.safeParse(parsed);
+    if (!result.success) {
+      throw new Error(
+        `${file} contains invalid approval data; restore or repair it.`,
+      );
+    }
+    return result.data.approvals;
+  }
+
+  async function listApprovals(projectId: string) {
+    await afterPendingMutation(approvalsQueue(projectId));
+    return readApprovals(projectId);
+  }
+
+  function setApproval(
+    projectId: string,
+    rawInput: SetApprovalInput,
+  ): Promise<ScreenApproval[]> {
+    return serializeMutation(approvalsQueue(projectId), async () => {
+      const input = setApprovalInputSchema.parse(rawInput);
+      const approvals = await readApprovals(projectId);
+      const others = approvals.filter(
+        (item) =>
+          item.version !== input.version || item.screenId !== input.screenId,
+      );
+      const already = approvals.find((item) => !others.includes(item));
+      if (input.approved === Boolean(already)) return approvals;
+      const next = input.approved
+        ? [
+            ...others,
+            {
+              version: input.version,
+              screenId: input.screenId,
+              approvedAt: now().toISOString(),
+            },
+          ]
+        : others;
+      await writeAtomically(
+        projectId,
+        "approvals.json",
+        approvalsEnvelopeSchema.parse({ version: 1, approvals: next }),
+      );
+      return next;
+    });
   }
 
   async function afterPendingMutation(projectId: string) {
@@ -315,6 +409,8 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
     updateFeedback,
     deleteFeedback,
     importFeedback,
+    listApprovals,
+    setApproval,
   };
 }
 

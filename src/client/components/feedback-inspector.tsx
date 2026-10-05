@@ -166,6 +166,9 @@ export function FeedbackInspector({
   onUpdate,
   onDelete,
   onVisibleFeedbackChange,
+  hiddenPinStatuses = [],
+  onTogglePinStatus,
+  approval,
   ready = true,
   adding = false,
 }: {
@@ -183,6 +186,9 @@ export function FeedbackInspector({
   onUpdate: (id: string, input: UpdateFeedbackInput) => Promise<FeedbackRecord>;
   onDelete?: (id: string, expectedUpdatedAt: string) => Promise<void>;
   onVisibleFeedbackChange?: (feedback: FeedbackRecord[]) => void;
+  hiddenPinStatuses?: readonly FeedbackStatus[];
+  onTogglePinStatus?: (status: FeedbackStatus) => void;
+  approval?: { approved: boolean; ready: boolean; onToggle: () => void };
   ready?: boolean;
   adding?: boolean;
 }) {
@@ -813,6 +819,7 @@ export function FeedbackInspector({
         if (items.length === 0) return null;
         // Comments without a priority tag sit after the P groups, unheaded.
         const untagged = items.filter((item) => !priorityTag(item.tags));
+        const pinsHidden = hiddenPinStatuses.includes(section.status);
         return (
           <section
             aria-label={section.label}
@@ -822,6 +829,17 @@ export function FeedbackInspector({
             <h3 className="feedback-section-title">
               {section.label}
               <span className="feedback-count">{items.length}</span>
+              {onTogglePinStatus ? (
+                <button
+                  aria-label={`${pinsHidden ? "Show" : "Hide"} ${section.label} pins`}
+                  aria-pressed={pinsHidden}
+                  className="feedback-section-pins"
+                  onClick={() => onTogglePinStatus(section.status)}
+                  type="button"
+                >
+                  {pinsHidden ? "Show pins" : "Hide pins"}
+                </button>
+              ) : null}
             </h3>
             {PRIORITY_TAGS.map((priority) => {
               const group = items.filter(
@@ -855,6 +873,24 @@ export function FeedbackInspector({
       })}
 
       {showEditor && !editingRecord ? editorSection : null}
+
+      {approval ? (
+        <div className="screen-approval">
+          <button
+            aria-pressed={approval.approved}
+            className="screen-approval-toggle"
+            disabled={!approval.ready}
+            onClick={approval.onToggle}
+            title={approval.approved ? "Click to unapprove" : undefined}
+            type="button"
+          >
+            <span aria-hidden="true" className="screen-approval-box">
+              {approval.approved ? "✓" : ""}
+            </span>
+            {approval.approved ? "Screen approved" : "Approve screen"}
+          </button>
+        </div>
+      ) : null}
     </aside>
   );
 }

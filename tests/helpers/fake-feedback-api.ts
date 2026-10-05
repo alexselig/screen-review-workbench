@@ -25,7 +25,7 @@ export async function installFakeFeedbackApi() {
   const root = await mkdtemp(join(process.cwd(), "tests/.feedback-data-"));
   const storage = createFeedbackStorage({ dataRoot: root });
   const requests: { method: string; path: string }[] = [];
-  let failNext: { status: number; error: string } | null = null;
+  let failNext: { status: number; error: string; path?: RegExp } | null = null;
   let gate: Promise<void> | null = null;
 
   const fetchMock = vi.fn(async (url: string, init: RequestInit = {}) => {
@@ -37,10 +37,32 @@ export async function installFakeFeedbackApi() {
     }
     requests.push({ method, path });
     if (gate) await gate;
-    if (failNext) {
+    if (failNext && (failNext.path ?? /\/feedback/).test(path)) {
       const failure = failNext;
       failNext = null;
       return reply(failure.status, { error: failure.error });
+    }
+    const approvalsMatch = /^\/api\/projects\/([^/]+)\/approvals\/?$/.exec(
+      path,
+    );
+    if (approvalsMatch) {
+      const projectId = decodeURIComponent(approvalsMatch[1]!);
+      try {
+        if (method === "GET") {
+          return reply(200, {
+            approvals: await storage.listApprovals(projectId),
+          });
+        }
+        if (method === "PUT") {
+          const input = JSON.parse(String(init.body));
+          return reply(200, {
+            approvals: await storage.setApproval(projectId, input),
+          });
+        }
+        return reply(405, { error: "Method not allowed." });
+      } catch (error) {
+        return reply(500, { error: (error as Error).message });
+      }
     }
     const match = ROUTE.exec(path);
     if (!match) return reply(404, { error: "Not found." });
@@ -89,8 +111,9 @@ export async function installFakeFeedbackApi() {
     root,
     storage,
     requests,
-    failNext(status: number, error: string) {
-      failNext = { status, error };
+    // Fails the next feedback request, or the next request matching path.
+    failNext(status: number, error: string, path?: RegExp) {
+      failNext = { status, error, path };
     },
     hold() {
       let release!: () => void;

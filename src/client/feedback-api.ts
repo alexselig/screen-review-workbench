@@ -4,6 +4,10 @@ import {
   type FeedbackRecord,
   type UpdateFeedbackInput,
 } from "../shared/feedback";
+import {
+  screenApprovalSchema,
+  type SetApprovalInput,
+} from "../shared/approvals";
 import type { ProjectList } from "../shared/projects";
 
 export class FeedbackApiError extends Error {
@@ -92,6 +96,25 @@ export async function removeFeedback(
     method: "DELETE",
     body: { expectedUpdatedAt },
   });
+}
+
+function approvalsUrl(projectId: string) {
+  return `/api/projects/${encodeURIComponent(projectId)}/approvals`;
+}
+
+export async function fetchApprovals(projectId: string) {
+  const { approvals } = await request<{ approvals: unknown }>(
+    approvalsUrl(projectId),
+  );
+  return screenApprovalSchema.array().parse(approvals);
+}
+
+export async function putApproval(projectId: string, input: SetApprovalInput) {
+  const { approvals } = await request<{ approvals: unknown }>(
+    approvalsUrl(projectId),
+    { method: "PUT", body: input },
+  );
+  return screenApprovalSchema.array().parse(approvals);
 }
 
 export function legacyFeedbackKey(projectId: string) {

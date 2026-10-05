@@ -1307,6 +1307,25 @@ button.tag-chip:hover {
   letter-spacing: 0.12em;
 }
 
+.feedback-section-pins {
+  margin-left: auto;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.feedback-section-pins:hover,
+.feedback-section-pins:focus-visible {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
 .feedback-group {
   display: grid;
   gap: 6px;
@@ -1658,4 +1677,82 @@ button.tag-chip:hover {
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;
+}
+
+/* Approval sits at the foot of the feedback pane and stays in view while the
+   pane scrolls, just above the fixed action bar. */
+.feedback-column .feedback-panel {
+  min-height: calc(100vh - var(--action-bar-height));
+}
+
+.screen-approval {
+  position: sticky;
+  z-index: 2;
+  bottom: var(--action-bar-height);
+  margin: auto -24px -24px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--ink);
+  background: var(--surface-alt);
+}
+
+/* End the fullscreen pane at the action bar so the toggle sits on its floor. */
+.fullscreen-edge-feedback {
+  bottom: var(--action-bar-height);
+}
+
+.fullscreen-edge-panel .screen-approval {
+  bottom: 0;
+}
+
+.screen-approval-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.screen-approval-toggle:hover {
+  background: var(--surface-alt);
+}
+
+.screen-approval-toggle[aria-pressed="true"] {
+  border-color: var(--fixed-teal);
+  background: var(--fixed-teal);
+  color: var(--on-teal);
+}
+
+.screen-approval-toggle[aria-pressed="true"]:hover {
+  filter: brightness(0.92);
+}
+
+.screen-approval-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.screen-approval-toggle:focus-visible {
+  outline: 2px solid var(--bauhaus-blue);
+  outline-offset: 2px;
+}
+
+.screen-approval-box {
+  display: inline-grid;
+  width: 16px;
+  height: 16px;
+  place-items: center;
+  border: 1px solid currentColor;
+  font-size: 12px;
+  line-height: 1;
 }

@@ -34,6 +34,11 @@ The server binds to `http://127.0.0.1:4173`.
   state their scope, and keep on-screen pin numbers.
 - The feedback panel chunks comments by status, then by priority. Empty chunks
   are hidden and untagged comments sit under their status with no heading.
+  Each status section has a **Hide pins / Show pins** switch on its right;
+  Fixed pins are hidden by default and the choice is remembered per browser.
+- **Approve screen** is pinned to the foot of the feedback panel. One click
+  approves the screen (teal, "Screen approved"); click again to unapprove.
+  Approvals are saved per version and screen in `approvals.json`.
 - Older feedback files are migrated on read: priority Blocking/Important/Polish
   becomes P0/P1/P2 and the category becomes a tag.
 - Responsive layout: at 900px and below, screens become a numbered strip and
@@ -50,11 +55,12 @@ The server binds to `http://127.0.0.1:4173`.
 
 ### Keyboard
 
-| Keys | Action |
-|---|---|
-| ⌘F / Ctrl+F | Add feedback (replaces the browser's find in this app) |
-| ← / → or [ / ] | Previous / next screen (ignored while typing) |
-| Esc | Cancel placing a pin |
+| Keys           | Action                                                 |
+| -------------- | ------------------------------------------------------ |
+| ⌘F / Ctrl+F    | Add feedback (replaces the browser's find in this app) |
+| ← / → or [ / ] | Previous / next screen (ignored while typing)          |
+| Esc            | Cancel placing a pin                                   |
+
 - Atomic file storage with serialized mutations, conflict checks, and restart
   recovery.
 
@@ -69,15 +75,17 @@ Feedback is written to disk by the server, never only to the browser:
 Set `SCREEN_REVIEW_DATA` to use another folder (useful for testing). The
 server prints the folder it is using on startup.
 
-| Route | Purpose |
-|---|---|
-| `GET /api/projects/:projectId/feedback` | List feedback |
-| `POST /api/projects/:projectId/feedback` | Create (idempotent on `clientMutationId`) |
-| `PATCH /api/projects/:projectId/feedback/:id` | Update; `409` with the current record if `expectedUpdatedAt` is stale |
-| `DELETE /api/projects/:projectId/feedback/:id` | Delete the expected revision |
-| `GET /api/projects` | Registered projects and screens (no local paths or proxy settings) |
+| Route                                                      | Purpose                                                                 |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `GET /api/projects/:projectId/feedback`                    | List feedback                                                           |
+| `POST /api/projects/:projectId/feedback`                   | Create (idempotent on `clientMutationId`)                               |
+| `PATCH /api/projects/:projectId/feedback/:id`              | Update; `409` with the current record if `expectedUpdatedAt` is stale   |
+| `DELETE /api/projects/:projectId/feedback/:id`             | Delete the expected revision                                            |
+| `GET /api/projects`                                        | Registered projects and screens (no local paths or proxy settings)      |
 | `GET /api/projects/:projectId/captures/:version/:screenId` | A screen's capture image, only from inside that version's `captureRoot` |
-| `POST /api/projects/:projectId/feedback/import` | Merge records saved elsewhere, keeping ids |
+| `POST /api/projects/:projectId/feedback/import`            | Merge records saved elsewhere, keeping ids                              |
+| `GET /api/projects/:projectId/approvals`                   | Approved screens (stored beside `feedback.json` in `approvals.json`)    |
+| `PUT /api/projects/:projectId/approvals`                   | Set `{version, screenId, approved}`; returns the full list              |
 
 Every mutation must carry a loopback `Origin` header and a JSON body (1 MB
 max); requests with a non-loopback `Host` header are refused. If

@@ -107,9 +107,6 @@ export function ScreenRail({
               {showGroup ? (
                 <h2 data-tone={groupIndex % 4} title={screen.group}>
                   <span className="group-full">{screen.group}</span>
-                  <span aria-hidden="true" className="group-short">
-                    {screen.group.replace(/[^A-Za-z0-9]/g, "").slice(0, 3)}
-                  </span>
                 </h2>
               ) : null}
               <button

@@ -403,17 +403,9 @@ h1 {
   text-overflow: clip;
 }
 
-.screen-rail ol h2 .group-short {
-  display: none;
-}
-
-/* Collapsed: the tinted band keeps its height and shows the abbreviation. */
+/* Collapsed: the tinted band keeps its height but shows no label. */
 .screen-rail[data-mode="compact"]:not([data-expanded="true"]) ol h2 .group-full {
-  display: none;
-}
-
-.screen-rail[data-mode="compact"]:not([data-expanded="true"]) ol h2 .group-short {
-  display: inline;
+  visibility: hidden;
 }
 
 /* Each section gets a quiet tint so sections read apart, even collapsed. */

@@ -99,6 +99,14 @@ function readRecoveryEntries(projectId: string): RecoveryEntries {
   }
 }
 
+function recoveryPin(entry: RecoveryEntry | undefined): Pin | null {
+  return entry?.kind === "create" &&
+    typeof entry.x === "number" &&
+    typeof entry.y === "number"
+    ? { x: entry.x, y: entry.y }
+    : null;
+}
+
 function writeRecovery(
   projectId: string,
   key: string,
@@ -178,12 +186,9 @@ export function FeedbackInspector({
   const initialCreateRecovery =
     initialRecoveries[createRecoveryKey(version, selectedScreenId)];
   const [recoveredPin, setRecoveredPin] = useState<Pin | null>(() =>
-    initialCreateRecovery?.kind === "create" &&
-    typeof initialCreateRecovery.x === "number" &&
-    typeof initialCreateRecovery.y === "number"
-      ? { x: initialCreateRecovery.x, y: initialCreateRecovery.y }
-      : null,
+    recoveryPin(initialCreateRecovery),
   );
+  const recoveryScopeRef = useRef(`${version}:${selectedScreenId}`);
   const [editor, setEditor] = useState<EditorState>(() => {
     const selected = feedback.find((item) => item.id === selectedFeedbackId);
     const recovery = selected
@@ -241,6 +246,21 @@ export function FeedbackInspector({
   useEffect(() => {
     onVisibleFeedbackChange?.(visibleFeedback);
   }, [onVisibleFeedbackChange, visibleFeedback]);
+
+  // A recovered draft belongs to one screen and version; re-read it whenever
+  // either changes so it never follows the reviewer to another screen.
+  useEffect(() => {
+    const scope = `${version}:${selectedScreenId}`;
+    if (recoveryScopeRef.current === scope) return;
+    recoveryScopeRef.current = scope;
+    setRecoveredPin(
+      recoveryPin(
+        readRecoveryEntries(projectId)[
+          createRecoveryKey(version, selectedScreenId)
+        ],
+      ),
+    );
+  }, [projectId, selectedScreenId, version]);
 
   useEffect(() => {
     if (recoveredPin) onRecoverDraft(recoveredPin);

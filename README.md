@@ -27,7 +27,8 @@ The server binds to `http://127.0.0.1:4173`.
   window size. Each comment card leads with the same numbered dot as its pin.
 - Free-text tags with suggested P0/P1/P2 priorities (one at a time; new pins
   default to P1), a status of Backlog, In progress, Fixed or Won't fix,
-  autosaved notes and two-step delete.
+  autosaved notes and two-step delete. Fixed pins turn teal with a check badge
+  so new feedback stands out from what has already been addressed.
 - **Export** in the action bar opens a dialog: Markdown or JSON, all screens or
   this screen only, and which statuses to include. Exports are deterministic,
   state their scope, and keep on-screen pin numbers.

@@ -15,6 +15,8 @@
   --warning-soft: #fff0e5;
   --destructive: #b42318;
   --destructive-soft: #fff0ee;
+  --fixed-teal: #1d7a6e;
+  --on-teal: #ffffff;
   --font-display:
     "League Spartan", Futura, "Avenir Next", system-ui, sans-serif;
   --font-sans: "Figtree", "Avenir Next", system-ui, sans-serif;
@@ -1406,6 +1408,35 @@ button.tag-chip:hover {
   background: var(--surface);
   color: var(--ink-muted);
   outline: 2px solid var(--ink-muted);
+}
+
+/* Fixed reads apart from every open stage: teal fill plus a check badge. */
+.pin-dot.is-fixed {
+  background: var(--fixed-teal);
+  color: var(--on-teal);
+}
+
+/* Canvas pins are already absolutely positioned; card dots need an anchor. */
+.pin-dot.is-fixed:not(.feedback-pin) {
+  position: relative;
+}
+
+.pin-dot.is-fixed::after {
+  content: "✓";
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border: 1.5px solid var(--fixed-teal);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--fixed-teal);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .pin-dot.is-selected {

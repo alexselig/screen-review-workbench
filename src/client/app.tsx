@@ -556,7 +556,7 @@ export function App() {
             .map((item) => (
               <button
                 aria-controls={`feedback-comment-${item.id}`}
-                aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}: ${item.note}`}
+                aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}${item.status === "RESOLVED" ? " (fixed)" : ""}: ${item.note}`}
                 aria-pressed={item.id === selectedFeedbackId}
                 className={`feedback-pin ${pinDotClassName(item, item.id === selectedFeedbackId)}`}
                 data-testid="feedback-pin"

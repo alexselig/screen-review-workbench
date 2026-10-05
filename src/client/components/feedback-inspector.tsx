@@ -135,7 +135,8 @@ export function pinDotClassName(item: FeedbackRecord, selected: boolean) {
   return [
     "pin-dot",
     `priority-${(priorityTag(item.tags) ?? "none").toLowerCase()}`,
-    item.status === "RESOLVED" || item.status === "WONT_FIX" ? "is-closed" : "",
+    item.status === "RESOLVED" ? "is-fixed" : "",
+    item.status === "WONT_FIX" ? "is-closed" : "",
     selected ? "is-selected" : "",
   ]
     .filter(Boolean)

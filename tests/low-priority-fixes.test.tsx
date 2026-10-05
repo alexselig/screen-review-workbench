@@ -116,11 +116,11 @@ describe("delete", () => {
     render(<App />);
     await selectComment("Remove me");
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete comment" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete comment 1" }));
     fireEvent.click(screen.getByRole("button", { name: "Keep" }));
     expect(await api.storage.listFeedback("example")).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete comment" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete comment 1" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm delete" }));
 
     await waitFor(() => expect(screen.queryByText("Remove me")).toBeNull());

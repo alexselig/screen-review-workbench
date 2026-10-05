@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-} from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 
 import {
   createPinNumbers,
@@ -200,10 +194,7 @@ export function FeedbackInspector({
   onRecoverDraft: (pin: Pin) => void;
   onSelectFeedback: (id: string | null) => void;
   onCreate: (input: CreateFeedbackInput) => Promise<FeedbackRecord>;
-  onUpdate: (
-    id: string,
-    input: UpdateFeedbackInput,
-  ) => Promise<FeedbackRecord>;
+  onUpdate: (id: string, input: UpdateFeedbackInput) => Promise<FeedbackRecord>;
   onDelete?: (id: string, expectedUpdatedAt: string) => Promise<void>;
   onExport?: (format: "json" | "markdown", contents: string) => void;
   onVisibleFeedbackChange?: (feedback: FeedbackRecord[]) => void;
@@ -243,7 +234,10 @@ export function FeedbackInspector({
   });
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [saveMessage, setSaveMessage] = useState("");
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
+    null,
+  );
+  const [deleteMessage, setDeleteMessage] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revisionRef = useRef(0);
@@ -281,7 +275,8 @@ export function FeedbackInspector({
   latestRecordRef.current = selectedRecord;
 
   useEffect(() => {
-    setConfirmingDelete(false);
+    setConfirmingDeleteId(null);
+    setDeleteMessage("");
   }, [selectedFeedbackId]);
 
   useEffect(() => {
@@ -336,13 +331,7 @@ export function FeedbackInspector({
     } else if (!effectiveDraftPin) {
       setEditor(EMPTY_EDITOR);
     }
-  }, [
-    effectiveDraftPin,
-    projectId,
-    selectedRecord,
-    selectedScreenId,
-    version,
-  ]);
+  }, [effectiveDraftPin, projectId, selectedRecord, selectedScreenId, version]);
 
   function currentRecoveryKey() {
     return selectedRecord
@@ -432,7 +421,9 @@ export function FeedbackInspector({
       }
     } catch (error) {
       setSaveMessage(
-        error instanceof Error ? `Retry required: ${error.message}` : "Retry required",
+        error instanceof Error
+          ? `Retry required: ${error.message}`
+          : "Retry required",
       );
     }
   }
@@ -479,7 +470,9 @@ export function FeedbackInspector({
       }
     } catch (error) {
       setSaveMessage(
-        error instanceof Error ? `Retry required: ${error.message}` : "Retry required",
+        error instanceof Error
+          ? `Retry required: ${error.message}`
+          : "Retry required",
       );
     }
   }
@@ -505,7 +498,9 @@ export function FeedbackInspector({
     filters.status && `status ${readable(filters.status)}`,
   ].filter(Boolean);
   const exportScope = `All ${screens.length} screens · version ${version} · ${
-    activeFilters.length ? `filtered by ${activeFilters.join(", ")}` : "no filters"
+    activeFilters.length
+      ? `filtered by ${activeFilters.join(", ")}`
+      : "no filters"
   } · ${exportRecords.length} item${exportRecords.length === 1 ? "" : "s"}`;
 
   function exportFeedback(format: "json" | "markdown") {
@@ -529,27 +524,199 @@ export function FeedbackInspector({
     );
   }
 
-  async function confirmDelete() {
-    const record = latestRecordRef.current;
+  async function confirmDelete(id: string) {
+    const isSelected = latestRecordRef.current?.id === id;
+    const record = isSelected
+      ? latestRecordRef.current
+      : (feedback.find((item) => item.id === id) ?? null);
     if (!record || !onDelete) return;
-    if (timerRef.current) {
+    if (isSelected && timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    setSaveMessage("Deleting…");
+    setDeleteMessage("Deleting…");
     try {
       await onDelete(record.id, record.updatedAt);
       writeRecovery(projectId, updateRecoveryKey(record.id), null);
-      setConfirmingDelete(false);
+      setConfirmingDeleteId(null);
+      setDeleteMessage("");
       setSaveMessage("Deleted");
     } catch (error) {
-      setSaveMessage(
-        error instanceof Error ? `Retry required: ${error.message}` : "Retry required",
+      setDeleteMessage(
+        error instanceof Error
+          ? `Retry required: ${error.message}`
+          : "Retry required",
       );
     }
   }
 
+  function deleteButton(item: FeedbackRecord) {
+    if (!onDelete) return null;
+    return (
+      <button
+        aria-expanded={confirmingDeleteId === item.id}
+        aria-label={`Delete comment ${pinNumbers.get(item.id) ?? 0}`}
+        className="feedback-delete-x"
+        onClick={() => {
+          setDeleteMessage("");
+          setConfirmingDeleteId(item.id);
+        }}
+        title="Delete comment"
+        type="button"
+      >
+        <svg aria-hidden="true" height="14" viewBox="0 0 14 14" width="14">
+          <path
+            d="M2 2l10 10M12 2 2 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+          />
+        </svg>
+      </button>
+    );
+  }
+
+  function deleteConfirm(item: FeedbackRecord) {
+    if (confirmingDeleteId !== item.id) return null;
+    return (
+      <div
+        aria-label="Confirm delete"
+        className="feedback-delete-confirm"
+        role="group"
+      >
+        <span>Delete pin {pinNumbers.get(item.id) ?? 0} and its comment?</span>
+        <button
+          className="feedback-delete-button"
+          onClick={() => void confirmDelete(item.id)}
+          type="button"
+        >
+          Confirm delete
+        </button>
+        <button onClick={() => setConfirmingDeleteId(null)} type="button">
+          Keep
+        </button>
+        {deleteMessage ? (
+          <span aria-live="polite" role="status">
+            {deleteMessage}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
   const showEditor = Boolean(effectiveDraftPin || visibleSelectedRecord);
+  // The comment being edited renders as the editor in its own list slot, so it
+  // never appears twice (once as a saved card and again in the editor).
+  const editingRecord = effectiveDraftPin ? null : visibleSelectedRecord;
+  const editorSection = (
+    <section className="feedback-editor" aria-label="Feedback editor">
+      <header className="feedback-editor-header">
+        {editingRecord ? (
+          <span
+            aria-label={`Pin ${pinNumbers.get(editingRecord.id) ?? 0}`}
+            className={pinDotClassName(editingRecord, true)}
+          >
+            {pinNumbers.get(editingRecord.id) ?? 0}
+          </span>
+        ) : (
+          <span aria-hidden="true" className="pin-dot feedback-pin-draft">
+            +
+          </span>
+        )}
+        <span className="feedback-comment-meta">
+          {editingRecord
+            ? `Editing pin ${pinNumbers.get(editingRecord.id) ?? 0}`
+            : "New pin"}
+        </span>
+        {editingRecord ? deleteButton(editingRecord) : null}
+      </header>
+      <label>
+        Feedback note
+        <textarea
+          aria-label="Feedback note"
+          onChange={(event) => updateEditor({ note: event.target.value })}
+          ref={textareaRef}
+          value={editor.note}
+        />
+      </label>
+      <div className="feedback-editor-taxonomy">
+        <label>
+          Category
+          <select
+            aria-label="Feedback category"
+            onChange={(event) =>
+              updateEditor({
+                category: event.target.value as FeedbackCategory,
+              })
+            }
+            value={editor.category}
+          >
+            {FEEDBACK_CATEGORIES.map((category) => (
+              <option key={category} value={category}>
+                {readable(category)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Priority
+          <select
+            aria-label="Feedback priority"
+            onChange={(event) =>
+              updateEditor({
+                priority: event.target.value as FeedbackPriority,
+              })
+            }
+            value={editor.priority}
+          >
+            {FEEDBACK_PRIORITIES.map((priority) => (
+              <option key={priority} value={priority}>
+                {readable(priority)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      {visibleSelectedRecord ? (
+        <label>
+          Status
+          <select
+            aria-label="Feedback status"
+            onChange={changeStatus}
+            value={editor.status}
+          >
+            {FEEDBACK_STATUSES.map((status) => (
+              <option key={status} value={status}>
+                {readable(status)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+
+      {effectiveDraftPin ? (
+        <button
+          className="feedback-cancel-button"
+          onClick={() => {
+            writeRecovery(
+              projectId,
+              createRecoveryKey(version, selectedScreenId),
+              null,
+            );
+            setRecoveredPin(null);
+            setEditor(EMPTY_EDITOR);
+            onCancelDraft();
+          }}
+          type="button"
+        >
+          Cancel pin
+        </button>
+      ) : null}
+      <span aria-live="polite" className="feedback-save-state" role="status">
+        {saveMessage}
+      </span>
+    </section>
+  );
 
   return (
     <aside className="feedback-panel" aria-label="Feedback inspector">
@@ -632,152 +799,50 @@ export function FeedbackInspector({
       ) : null}
 
       <ol className="feedback-list">
-        {visibleFeedback.map((item) => (
-          <li key={item.id}>
-            <button
-              aria-controls={feedbackPinId(item.id)}
-              aria-pressed={item.id === selectedFeedbackId}
-              className={`feedback-comment status-${item.status.toLowerCase()}`}
-              id={feedbackCommentId(item.id)}
-              onClick={() => {
-                onSelectFeedback(item.id);
-                document.getElementById(feedbackPinId(item.id))?.focus();
-              }}
-              type="button"
-            >
-              <span
-                aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}`}
-                className={pinDotClassName(item, item.id === selectedFeedbackId)}
-              >
-                {pinNumbers.get(item.id) ?? 0}
-              </span>
-              <span className="feedback-comment-meta">
-                {readable(item.priority)} · {readable(item.category)}
-              </span>
-              <strong>{item.note}</strong>
-              <span className="feedback-comment-meta">{readable(item.status)}</span>
-            </button>
-          </li>
-        ))}
-      </ol>
-
-      {showEditor ? (
-        <section className="feedback-editor" aria-label="Feedback editor">
-          <label>
-            Feedback note
-            <textarea
-              aria-label="Feedback note"
-              onChange={(event) => updateEditor({ note: event.target.value })}
-              ref={textareaRef}
-              value={editor.note}
-            />
-          </label>
-          <div className="feedback-editor-taxonomy">
-            <label>
-              Category
-              <select
-                aria-label="Feedback category"
-                onChange={(event) =>
-                  updateEditor({
-                    category: event.target.value as FeedbackCategory,
-                  })
-                }
-                value={editor.category}
-              >
-                {FEEDBACK_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {readable(category)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Priority
-              <select
-                aria-label="Feedback priority"
-                onChange={(event) =>
-                  updateEditor({
-                    priority: event.target.value as FeedbackPriority,
-                  })
-                }
-                value={editor.priority}
-              >
-                {FEEDBACK_PRIORITIES.map((priority) => (
-                  <option key={priority} value={priority}>
-                    {readable(priority)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {visibleSelectedRecord ? (
-            <label>
-              Status
-              <select
-                aria-label="Feedback status"
-                onChange={changeStatus}
-                value={editor.status}
-              >
-                {FEEDBACK_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {readable(status)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          {visibleSelectedRecord && onDelete ? (
-            confirmingDelete ? (
-              <div
-                className="feedback-delete-confirm"
-                role="group"
-                aria-label="Confirm delete"
-              >
-                <span>Delete this comment and its pin?</span>
-                <button
-                  className="feedback-delete-button"
-                  onClick={() => void confirmDelete()}
-                  type="button"
-                >
-                  Confirm delete
-                </button>
-                <button onClick={() => setConfirmingDelete(false)} type="button">
-                  Keep
-                </button>
-              </div>
-            ) : (
+        {visibleFeedback.map((item) =>
+          item.id === editingRecord?.id ? (
+            <li className="is-editing" key={item.id}>
+              {editorSection}
+              {deleteConfirm(item)}
+            </li>
+          ) : (
+            <li key={item.id}>
               <button
-                className="feedback-delete-start"
-                onClick={() => setConfirmingDelete(true)}
+                aria-controls={feedbackPinId(item.id)}
+                aria-pressed={item.id === selectedFeedbackId}
+                className={`feedback-comment status-${item.status.toLowerCase()}`}
+                id={feedbackCommentId(item.id)}
+                onClick={() => {
+                  onSelectFeedback(item.id);
+                  document.getElementById(feedbackPinId(item.id))?.focus();
+                }}
                 type="button"
               >
-                Delete comment
+                <span
+                  aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}`}
+                  className={pinDotClassName(
+                    item,
+                    item.id === selectedFeedbackId,
+                  )}
+                >
+                  {pinNumbers.get(item.id) ?? 0}
+                </span>
+                <span className="feedback-comment-meta">
+                  {readable(item.priority)} · {readable(item.category)}
+                </span>
+                <strong>{item.note}</strong>
+                <span className="feedback-comment-meta">
+                  {readable(item.status)}
+                </span>
               </button>
-            )
-          ) : null}
-          {effectiveDraftPin ? (
-            <button
-              className="feedback-cancel-button"
-              onClick={() => {
-                writeRecovery(
-                  projectId,
-                  createRecoveryKey(version, selectedScreenId),
-                  null,
-                );
-                setRecoveredPin(null);
-                setEditor(EMPTY_EDITOR);
-                onCancelDraft();
-              }}
-              type="button"
-            >
-              Cancel pin
-            </button>
-          ) : null}
-          <span aria-live="polite" className="feedback-save-state" role="status">
-            {saveMessage}
-          </span>
-        </section>
-      ) : null}
+              {deleteButton(item)}
+              {deleteConfirm(item)}
+            </li>
+          ),
+        )}
+      </ol>
+
+      {showEditor && !editingRecord ? editorSection : null}
 
       <footer className="feedback-export-actions">
         <p className="feedback-export-scope">

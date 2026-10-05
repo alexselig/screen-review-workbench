@@ -44,6 +44,18 @@ textarea {
   font: inherit;
 }
 
+/* Native arrows sit flush to the edge; draw one with room to breathe. */
+select {
+  appearance: none;
+  padding: 0 32px 0 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23141414' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-position: right 12px center;
+  background-repeat: no-repeat;
+  background-size: 10px 6px;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
 :focus-visible {
   outline: 2px solid var(--bauhaus-blue);
   outline-offset: 2px;
@@ -56,7 +68,21 @@ textarea {
   justify-content: space-between;
   padding: 16px 24px;
   border-bottom: 1px solid var(--ink);
-  background: var(--bauhaus-orange);
+  /* Ink, not orange: orange is reserved for the one loud action (Add feedback). */
+  background: var(--ink);
+  color: var(--on-blue);
+}
+
+.workbench-header .eyebrow {
+  color: #c9ccd2;
+}
+
+.workbench-header .status-pill {
+  border-color: currentColor;
+}
+
+.workbench-header .header-controls select {
+  border-color: var(--surface);
 }
 
 h1,
@@ -170,9 +196,8 @@ h1 {
 
 .header-controls select {
   min-height: 44px;
-  padding: 0 8px;
   border: 1px solid var(--ink);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--ink);
   font-size: 14px;
   letter-spacing: 0;
@@ -700,7 +725,6 @@ h1 {
 
 .feedback-add-button,
 .feedback-cancel-button,
-.feedback-delete-start,
 .feedback-delete-confirm button,
 .feedback-export-actions button {
   min-height: 44px;
@@ -763,15 +787,34 @@ h1 {
 .feedback-editor textarea {
   width: 100%;
   border: 1px solid var(--line-strong);
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--ink);
 }
 
 .feedback-filters select,
 .feedback-editor select {
   min-height: 44px;
-  padding: 0 6px;
   font-size: 12px;
+}
+
+.feedback-editor-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.feedback-editor-header .pin-dot {
+  /* Dot is a label here, not a placed pin. */
+  position: static;
+  transform: none;
+}
+
+/* Editing in place: the card becomes the editor, framed like a selected card. */
+.feedback-list .feedback-editor {
+  padding: 12px;
+  border: 1px solid var(--bauhaus-blue);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--bauhaus-blue);
 }
 
 .feedback-list {
@@ -795,6 +838,45 @@ h1 {
   color: var(--ink);
   text-align: left;
   cursor: pointer;
+}
+
+.feedback-list > li {
+  position: relative;
+}
+
+/* Keep card text clear of the corner delete button. */
+.feedback-comment {
+  padding-right: 44px;
+}
+
+.feedback-delete-x {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+
+.feedback-delete-x:hover,
+.feedback-delete-x[aria-expanded="true"] {
+  background: var(--destructive-soft);
+  color: var(--destructive);
+}
+
+.feedback-delete-x:focus-visible {
+  outline: 2px solid var(--destructive);
+  outline-offset: -2px;
+}
+
+.feedback-list .feedback-delete-confirm {
+  margin-top: 4px;
 }
 
 .feedback-comment > .pin-dot {
@@ -858,12 +940,6 @@ h1 {
   color: var(--ink-muted);
   font-size: 12px;
   line-height: 1.4;
-}
-
-.feedback-delete-start {
-  justify-self: start;
-  border-color: var(--destructive);
-  color: var(--destructive);
 }
 
 .feedback-delete-confirm {

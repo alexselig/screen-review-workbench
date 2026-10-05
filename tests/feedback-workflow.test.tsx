@@ -83,11 +83,21 @@ describe("feedback workflow integration", () => {
     await screen.findByTestId("feedback-pin", {}, { timeout: 2000 });
 
     const pin = screen.getByTestId("feedback-pin");
-    const cardDot = screen.getByLabelText("Pin 1", { selector: ".feedback-comment .pin-dot" });
+    const cardDot = screen.getByLabelText("Pin 1", { selector: ".feedback-list .pin-dot" });
     expect(pin).toHaveTextContent("1");
     expect(cardDot).toHaveTextContent("1");
     expect(pin).toHaveClass("pin-dot");
     expect(cardDot.className).toBe(pin.className.replace("feedback-pin ", ""));
+  });
+
+  it("edits a comment in place instead of listing it twice", async () => {
+    render(<App />);
+    await addFeedbackAtCentre("Only once.");
+    await screen.findByTestId("feedback-pin", {}, { timeout: 2000 });
+    const list = screen.getByRole("complementary", { name: "Feedback inspector" });
+    expect(list.querySelectorAll(".feedback-list > li")).toHaveLength(1);
+    expect(screen.queryByText("Only once.", { selector: ".feedback-comment strong" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Feedback editor" }).closest(".feedback-list")).not.toBeNull();
   });
 
   it("guides an empty screen and shows a cancellable pin mode", async () => {

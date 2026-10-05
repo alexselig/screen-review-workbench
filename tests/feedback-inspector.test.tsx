@@ -257,7 +257,6 @@ describe("FeedbackInspector", () => {
   });
 
   it("chunks comments by status then priority and hides empty chunks", () => {
-    const onExport = vi.fn();
     render(
       <FeedbackInspector
         draftPin={null}
@@ -279,7 +278,6 @@ describe("FeedbackInspector", () => {
         ]}
         onCancelDraft={vi.fn()}
         onCreate={vi.fn()}
-        onExport={onExport}
         onRecoverDraft={vi.fn()}
         onSelectFeedback={vi.fn()}
         onUpdate={vi.fn()}
@@ -311,12 +309,6 @@ describe("FeedbackInspector", () => {
     });
     expect(urgent).toHaveTextContent("Fix hover behavior.");
     expect(urgent).toHaveTextContent("Hover");
-
-    fireEvent.click(screen.getByRole("button", { name: "Export Markdown" }));
-    expect(onExport.mock.calls[0][1]).toContain("Fix hover behavior.");
-    expect(onExport.mock.calls[0][1]).toContain(
-      "Pin 2 · P0, Hover · In progress",
-    );
   });
 
   it("sets one priority tag at a time and adds free-text tags", async () => {

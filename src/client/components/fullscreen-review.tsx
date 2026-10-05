@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 
-type OpenPanel = "navigation" | "feedback" | null;
+type OpenPanel = "feedback" | null;
 
 export function FullscreenReview({
   children,
@@ -51,7 +51,7 @@ export function FullscreenReview({
         }}
         type="button"
       >
-        {side === "navigation" ? "Screens" : "Feedback"}
+        Feedback
       </button>
       <section className="fullscreen-edge-panel">{content}</section>
     </div>
@@ -59,7 +59,8 @@ export function FullscreenReview({
 
   return (
     <div className="fullscreen-review" data-testid="fullscreen-review">
-      {panel("navigation", navigation)}
+      {/* The screen rail sits on the edge in its compact form and expands on hover. */}
+      <div className="fullscreen-rail">{navigation}</div>
       <div className="fullscreen-canvas">{children}</div>
       {panel("feedback", feedback)}
     </div>

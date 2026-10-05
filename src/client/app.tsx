@@ -13,6 +13,7 @@ import {
   feedbackPinId,
   pinDotClassName,
 } from "./components/feedback-inspector";
+import { ExportDialog } from "./components/export-dialog";
 import { FullscreenReview } from "./components/fullscreen-review";
 import { ScreenRail, type RailMode } from "./components/screen-rail";
 import { createPinNumbers } from "../shared/export";
@@ -149,6 +150,7 @@ export function App() {
   const [visibleFeedback, setVisibleFeedback] =
     useState<FeedbackRecord[]>(feedbackRecords);
   const [addingFeedback, setAddingFeedback] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [draftPin, setDraftPin] = useState<{ x: number; y: number } | null>(
     null,
   );
@@ -403,6 +405,8 @@ export function App() {
   // ← and → (or [ and ]) step through screens when not typing.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if ((event.target as Element | null)?.closest?.('[role="dialog"]'))
+        return;
       if (
         event.key.toLowerCase() === "f" &&
         (event.metaKey || event.ctrlKey) &&
@@ -434,8 +438,8 @@ export function App() {
 
   const navigation = (
     <ScreenRail
-      mode={railMode}
-      onModeChange={setRailMode}
+      mode={fullscreen ? "compact" : railMode}
+      onModeChange={fullscreen ? undefined : setRailMode}
       onSelect={selectScreen}
       openCounts={openCounts}
       screens={screens}
@@ -644,17 +648,38 @@ export function App() {
           Next ›
         </button>
       </div>
-      <button
-        aria-keyshortcuts={isMac ? "Meta+F" : "Control+F"}
-        aria-pressed={addingFeedback}
-        className="feedback-add-button"
-        disabled={!ready}
-        onClick={startPin}
-        title={`Add feedback (${isMac ? "⌘F" : "Ctrl+F"})`}
-        type="button"
-      >
-        Add feedback <kbd aria-hidden="true">{isMac ? "⌘F" : "Ctrl F"}</kbd>
-      </button>
+      <div className="action-bar-end">
+        <button
+          aria-haspopup="dialog"
+          className="action-bar-export"
+          disabled={!ready}
+          onClick={() => setExportOpen(true)}
+          type="button"
+        >
+          Export
+        </button>
+        <button
+          aria-keyshortcuts={isMac ? "Meta+F" : "Control+F"}
+          aria-pressed={addingFeedback}
+          className="feedback-add-button"
+          disabled={!ready}
+          onClick={startPin}
+          title={`Add feedback (${isMac ? "⌘F" : "Ctrl+F"})`}
+          type="button"
+        >
+          Add feedback <kbd aria-hidden="true">{isMac ? "⌘F" : "Ctrl F"}</kbd>
+        </button>
+      </div>
+      {exportOpen ? (
+        <ExportDialog
+          feedback={feedbackRecords}
+          onClose={() => setExportOpen(false)}
+          projectId={project.id}
+          screens={screens}
+          selectedScreenId={selectedId}
+          version={version}
+        />
+      ) : null}
     </footer>
   );
 

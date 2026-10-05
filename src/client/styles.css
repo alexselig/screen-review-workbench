@@ -306,6 +306,152 @@ h1 {
   height: 44px;
 }
 
+.action-bar-end {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Secondary to Add feedback: borderless like Prev/Next. */
+.action-bar-export {
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.action-bar-export:hover:not(:disabled) {
+  background: var(--surface-alt);
+}
+
+.action-bar-export:focus-visible {
+  outline: 2px solid var(--bauhaus-blue);
+  outline-offset: 0;
+}
+
+.action-bar-export:disabled {
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+.export-backdrop {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(20 20 20 / 0.4);
+}
+
+.export-dialog {
+  display: grid;
+  width: min(420px, 100%);
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  gap: 16px;
+  padding: 24px;
+  border-top: 4px solid var(--bauhaus-orange);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.export-dialog h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 20px;
+  text-transform: uppercase;
+}
+
+.export-dialog fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.export-dialog legend {
+  width: 100%;
+  margin-bottom: 6px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.export-dialog label {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.export-dialog input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--bauhaus-blue);
+}
+
+.export-summary {
+  margin: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--ink-muted);
+  font-size: 13px;
+}
+
+.export-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.export-dialog-actions button {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.export-dialog-actions button:hover:not(:disabled) {
+  background: var(--surface-alt);
+}
+
+.export-dialog-actions .export-download {
+  border-color: var(--bauhaus-blue);
+  background: var(--bauhaus-blue);
+  color: var(--on-blue);
+}
+
+.export-dialog-actions .export-download:hover:not(:disabled) {
+  background: var(--bauhaus-blue);
+  filter: brightness(0.92);
+}
+
+.export-dialog-actions .export-download:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.export-dialog-actions button:focus-visible,
+.export-dialog label:focus-within {
+  outline: 2px solid var(--bauhaus-blue);
+  outline-offset: 2px;
+}
+
 .action-bar .feedback-add-button {
   display: inline-flex;
   justify-self: end;
@@ -639,7 +785,7 @@ h1 {
   width: 100%;
   height: 100%;
   overflow-y: auto;
-  padding: 0 56px var(--action-bar-height);
+  padding: 0 56px var(--action-bar-height) 60px;
 }
 
 .fullscreen-edge {
@@ -650,8 +796,49 @@ h1 {
   display: flex;
 }
 
-.fullscreen-edge-navigation {
+.fullscreen-rail {
+  position: fixed;
+  z-index: 29;
+  top: 0;
+  bottom: var(--action-bar-height);
   left: 0;
+  display: flex;
+}
+
+.fullscreen-rail .screen-rail {
+  height: 100%;
+  overflow-y: auto;
+  border-right: 1px solid var(--line-strong);
+  background: var(--surface-alt);
+}
+
+.fullscreen-rail .screen-rail[data-expanded="true"] {
+  border-right-color: var(--ink);
+}
+
+/* Fullscreen: the collapsed strip hugs the numbers to give the screen room. */
+@media (min-width: 901px) {
+  .fullscreen-rail
+    .screen-rail[data-mode="compact"]:not([data-expanded="true"]) {
+    width: 32px;
+    padding: 4px 3px;
+  }
+
+  .fullscreen-rail
+    .screen-rail[data-mode="compact"]:not([data-expanded="true"])
+    ol
+    h2 {
+    margin-inline: -3px;
+    padding-inline: 3px;
+  }
+
+  .fullscreen-rail
+    .screen-rail[data-mode="compact"]:not([data-expanded="true"])
+    li
+    button {
+    grid-template-columns: minmax(0, 1fr);
+    padding-inline: 0;
+  }
 }
 
 .fullscreen-edge-feedback {
@@ -708,7 +895,6 @@ h1 {
   border-left: 1px solid var(--ink);
 }
 
-.fullscreen-edge-panel .screen-rail,
 .fullscreen-edge-panel .feedback-panel {
   width: 100%;
   height: 100%;
@@ -746,8 +932,7 @@ h1 {
 }
 
 .feedback-inspector-header,
-.feedback-inspector-header > div,
-.feedback-export-actions {
+.feedback-inspector-header > div {
   display: flex;
   align-items: center;
 }
@@ -764,8 +949,7 @@ h1 {
 
 .feedback-add-button,
 .feedback-cancel-button,
-.feedback-delete-confirm button,
-.feedback-export-actions button {
+.feedback-delete-confirm button {
   min-height: 44px;
   padding: 0 12px;
   border: 1px solid var(--ink);
@@ -1166,26 +1350,6 @@ button.tag-chip:hover {
   font-size: 12px;
 }
 
-.feedback-export-actions {
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid var(--line);
-}
-
-.feedback-export-actions button {
-  flex: 1;
-}
-
-.feedback-export-scope {
-  flex-basis: 100%;
-  margin: 0;
-  color: var(--ink-muted);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
 .feedback-delete-confirm {
   display: flex;
   flex-wrap: wrap;
@@ -1365,6 +1529,21 @@ button.tag-chip:hover {
   .action-bar-hint {
     display: none;
   }
+
+  /* The fullscreen rail becomes the same numbered strip as the stacked layout. */
+  .fullscreen-rail {
+    right: 28px;
+    bottom: auto;
+  }
+
+  .fullscreen-rail .screen-rail {
+    height: auto;
+    border-right: 0;
+  }
+
+  .fullscreen-canvas {
+    padding: 72px 44px var(--action-bar-height) 16px;
+  }
 }
 
 @media (max-width: 480px) {
@@ -1392,7 +1571,15 @@ button.tag-chip:hover {
   }
 
   .action-bar-nav button {
-    padding: 0 10px;
+    padding: 0 6px;
+  }
+
+  .action-bar-end {
+    gap: 4px;
+  }
+
+  .action-bar .action-bar-export {
+    padding: 0 8px;
   }
 
   .feedback-add-button kbd,

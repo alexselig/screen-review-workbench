@@ -62,6 +62,29 @@ describe("action bar", () => {
     ).toBeVisible();
   });
 
+  it("shows the collapsed rail in fullscreen and expands it on hover", async () => {
+    render(<App />);
+    fireEvent.click(
+      within(actionBar()).getByRole("button", { name: "View fullscreen" }),
+    );
+    await within(actionBar()).findByRole("button", { name: "Exit fullscreen" });
+    const rail = document.querySelector(".fullscreen-rail .screen-rail")!;
+    expect(rail).toHaveAttribute("data-mode", "compact");
+    expect(rail).toHaveAttribute("data-expanded", "false");
+    expect(screen.queryByRole("button", { name: /screen index/ })).toBeNull();
+    fireEvent.mouseEnter(rail);
+    expect(rail).toHaveAttribute("data-expanded", "true");
+    fireEvent.mouseLeave(rail);
+    expect(rail).toHaveAttribute("data-expanded", "false");
+    fireEvent.click(
+      within(actionBar()).getByRole("button", { name: "Exit fullscreen" }),
+    );
+    // The normal view keeps its own rail mode.
+    expect(
+      await screen.findByRole("button", { name: "Collapse screen index" }),
+    ).toBeVisible();
+  });
+
   it("centres screen navigation in the footer", () => {
     render(<App />);
     const nav = within(actionBar()).getByRole("button", {

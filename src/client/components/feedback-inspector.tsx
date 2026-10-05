@@ -7,11 +7,7 @@ import {
   type KeyboardEvent,
 } from "react";
 
-import {
-  createPinNumbers,
-  serializeJson,
-  serializeMarkdown,
-} from "../../shared/export";
+import { createPinNumbers } from "../../shared/export";
 import {
   FEEDBACK_STATUSES,
   STATUS_LABELS,
@@ -133,16 +129,6 @@ function writeRecovery(
   }
 }
 
-function download(contents: string, fileName: string, type: string) {
-  if (!URL.createObjectURL) return;
-  const url = URL.createObjectURL(new Blob([contents], { type }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = fileName;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
 // Shared by canvas pins and comment cards so a number reads as the same
 // object in both places.
 export function pinDotClassName(item: FeedbackRecord, selected: boolean) {
@@ -178,7 +164,6 @@ export function FeedbackInspector({
   onCreate,
   onUpdate,
   onDelete,
-  onExport,
   onVisibleFeedbackChange,
   ready = true,
   adding = false,
@@ -196,7 +181,6 @@ export function FeedbackInspector({
   onCreate: (input: CreateFeedbackInput) => Promise<FeedbackRecord>;
   onUpdate: (id: string, input: UpdateFeedbackInput) => Promise<FeedbackRecord>;
   onDelete?: (id: string, expectedUpdatedAt: string) => Promise<void>;
-  onExport?: (format: "json" | "markdown", contents: string) => void;
   onVisibleFeedbackChange?: (feedback: FeedbackRecord[]) => void;
   ready?: boolean;
   adding?: boolean;
@@ -495,33 +479,6 @@ export function FeedbackInspector({
       const last = editor.tags.filter((tag) => !isPriority(tag)).at(-1);
       if (last) removeTag(last);
     }
-  }
-
-  const versionFeedback = feedback.filter((item) => item.version === version);
-  const exportRecords = versionFeedback;
-  const exportScope = `All ${screens.length} screens · version ${version} · ${
-    exportRecords.length
-  } item${exportRecords.length === 1 ? "" : "s"}`;
-
-  function exportFeedback(format: "json" | "markdown") {
-    const input = {
-      projectId,
-      screens,
-      feedback: exportRecords,
-      allFeedback: versionFeedback,
-      scope: exportScope,
-    };
-    const contents =
-      format === "json" ? serializeJson(input) : serializeMarkdown(input);
-    if (onExport) {
-      onExport(format, contents);
-      return;
-    }
-    download(
-      contents,
-      `${projectId}-feedback.${format === "json" ? "json" : "md"}`,
-      format === "json" ? "application/json" : "text/markdown",
-    );
   }
 
   async function confirmDelete(id: string) {
@@ -897,26 +854,6 @@ export function FeedbackInspector({
       })}
 
       {showEditor && !editingRecord ? editorSection : null}
-
-      <footer className="feedback-export-actions">
-        <p className="feedback-export-scope">
-          <strong>Export</strong> {exportScope}
-        </p>
-        <button
-          aria-label="Export JSON"
-          onClick={() => exportFeedback("json")}
-          type="button"
-        >
-          JSON
-        </button>
-        <button
-          aria-label="Export Markdown"
-          onClick={() => exportFeedback("markdown")}
-          type="button"
-        >
-          Markdown
-        </button>
-      </footer>
     </aside>
   );
 }

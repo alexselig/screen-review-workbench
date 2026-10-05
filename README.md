@@ -20,14 +20,17 @@ The server binds to `http://127.0.0.1:4173`.
 ## Current implementation
 
 - Wide and compact numbered navigation with hover/focus expansion and pinning.
-- Fullscreen review with overlay navigation and feedback edge panels.
+- Fullscreen review: a slim numbered screen strip on the left that expands to
+  names on hover, and a feedback edge panel on the right.
 - Stable screen manifests and a local Ship a Skill registration importer.
 - Screen pins placed on an aspect-locked screen frame, so they stay put at any
   window size. Each comment card leads with the same numbered dot as its pin.
 - Free-text tags with suggested P0/P1/P2 priorities (one at a time; new pins
   default to P1), a status of Backlog, In progress, Complete or Won't fix,
-  autosaved notes, two-step delete, and deterministic JSON/Markdown exports of
-  every screen (with the scope stated in the file).
+  autosaved notes and two-step delete.
+- **Export** in the action bar opens a dialog: Markdown or JSON, all screens or
+  this screen only, and which statuses to include. Exports are deterministic,
+  state their scope, and keep on-screen pin numbers.
 - The feedback panel chunks comments by status, then by priority. Empty chunks
   are hidden and untagged comments sit under their status with no heading.
 - Older feedback files are migrated on read: priority Blocking/Important/Polish
@@ -40,7 +43,7 @@ The server binds to `http://127.0.0.1:4173`.
   Tall captures make the page longer; the page is the scroll area, the screen
   list keeps its place, and the feedback panel follows along.
 - A fixed action bar keeps the fullscreen toggle (left), Prev/Next and the
-  current screen (centre), and **Add feedback** (right) in reach at the bottom
+  current screen (centre), and **Export** and **Add feedback** (right) in reach at the bottom
   of the window. The address bar records the project,
   version, and screen, so a reload or shared link opens the same place.
 

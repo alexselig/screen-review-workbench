@@ -16,7 +16,8 @@ export function ScreenRail({
   selectedId: string;
   openCounts?: ReadonlyMap<string, number>;
   mode: RailMode;
-  onModeChange: (mode: RailMode) => void;
+  // Omitted where the container controls collapse (the fullscreen drawer).
+  onModeChange?: (mode: RailMode) => void;
   onSelect: (id: string) => void;
 }) {
   const [temporaryExpanded, setTemporaryExpanded] = useState(false);
@@ -78,35 +79,37 @@ export function ScreenRail({
             {pinned ? "Unpin" : "Pin"}
           </button>
         ) : null}
-        <button
-          aria-label={
-            mode === "wide" ? "Collapse screen index" : "Expand screen index"
-          }
-          aria-expanded={mode === "wide"}
-          className="rail-mode-button"
-          title={
-            mode === "wide" ? "Collapse to numbers" : "Expand screen index"
-          }
-          onClick={() => {
-            setPinned(false);
-            setTemporaryExpanded(false);
-            onModeChange(mode === "wide" ? "compact" : "wide");
-          }}
-          type="button"
-        >
-          <svg aria-hidden="true" height="16" viewBox="0 0 16 16" width="16">
-            <path
-              d={
-                mode === "wide"
-                  ? "M9 3 4 8l5 5M13 3 8 8l5 5"
-                  : "M3 3l5 5-5 5M7 3l5 5-5 5"
-              }
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.75"
-            />
-          </svg>
-        </button>
+        {onModeChange ? (
+          <button
+            aria-label={
+              mode === "wide" ? "Collapse screen index" : "Expand screen index"
+            }
+            aria-expanded={mode === "wide"}
+            className="rail-mode-button"
+            title={
+              mode === "wide" ? "Collapse to numbers" : "Expand screen index"
+            }
+            onClick={() => {
+              setPinned(false);
+              setTemporaryExpanded(false);
+              onModeChange(mode === "wide" ? "compact" : "wide");
+            }}
+            type="button"
+          >
+            <svg aria-hidden="true" height="16" viewBox="0 0 16 16" width="16">
+              <path
+                d={
+                  mode === "wide"
+                    ? "M9 3 4 8l5 5M13 3 8 8l5 5"
+                    : "M3 3l5 5-5 5M7 3l5 5-5 5"
+                }
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+              />
+            </svg>
+          </button>
+        ) : null}
       </div>
       <ol>
         {screens.map((screen) => {

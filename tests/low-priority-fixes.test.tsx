@@ -5,11 +5,12 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "../src/client/app";
-import { FeedbackInspector } from "../src/client/components/feedback-inspector";
+import { ExportDialog } from "../src/client/components/export-dialog";
 import { serializeMarkdown } from "../src/shared/export";
 import type { FeedbackRecord } from "../src/shared/feedback";
 import { installFakeFeedbackApi } from "./helpers/fake-feedback-api";
@@ -44,54 +45,102 @@ async function selectComment(note: string) {
 }
 
 describe("export scope", () => {
-  it("exports every screen, states the scope, and keeps on-screen pin numbers", async () => {
+  const twoScreens = [
+    {
+      id: "landing",
+      ordinal: 1,
+      title: "Landing",
+      group: "A",
+      viewport: { width: 1440, height: 1000 },
+    },
+    {
+      id: "dashboard",
+      ordinal: 2,
+      title: "Dashboard",
+      group: "A",
+      viewport: { width: 1440, height: 1000 },
+    },
+  ];
+
+  it("exports from a footer dialog with format, screen and status options", async () => {
     await seed("landing", "Landing one", 0);
     await seed("landing", "Landing two", 1);
     await seed("dashboard", "Dashboard one", 2);
-    const exported: string[] = [];
     const records = await api.storage.listFeedback("example");
-
+    await api.storage.updateFeedback("example", records[0].id, {
+      expectedUpdatedAt: records[0].updatedAt,
+      patch: { status: "RESOLVED" },
+    });
+    const all = await api.storage.listFeedback("example");
+    const exported: [string, string][] = [];
+    const onClose = vi.fn();
     render(
-      <FeedbackInspector
-        draftPin={null}
-        feedback={records}
-        onCancelDraft={vi.fn()}
-        onCreate={vi.fn()}
-        onExport={(_format, contents) => exported.push(contents)}
-        onRecoverDraft={vi.fn()}
-        onSelectFeedback={vi.fn()}
-        onUpdate={vi.fn()}
+      <ExportDialog
+        feedback={all}
+        onClose={onClose}
+        onExport={(format, contents) => exported.push([format, contents])}
         projectId="example"
-        screens={[
-          {
-            id: "landing",
-            ordinal: 1,
-            title: "Landing",
-            group: "A",
-            viewport: { width: 1440, height: 1000 },
-          },
-          {
-            id: "dashboard",
-            ordinal: 2,
-            title: "Dashboard",
-            group: "A",
-            viewport: { width: 1440, height: 1000 },
-          },
-        ]}
-        selectedFeedbackId={null}
+        screens={twoScreens}
         selectedScreenId="landing"
         version="live"
       />,
     );
-    expect(document.querySelector(".feedback-export-scope")).toHaveTextContent(
-      "All 2 screens · version live · 3 items",
-    );
-    fireEvent.click(screen.getByRole("button", { name: "Export Markdown" }));
 
-    expect(exported[0]).toContain("_Scope: All 2 screens");
-    expect(exported[0]).toContain("**Pin 2 ");
-    expect(exported[0]).toContain("Landing two");
-    expect(exported[0]).toContain("Dashboard one");
+    const dialog = screen.getByRole("dialog", { name: "Export feedback" });
+    expect(
+      within(dialog).getByRole("radio", { name: "Markdown" }),
+    ).toBeChecked();
+    expect(dialog).toHaveTextContent("All 2 screens · version live · 3 items");
+
+    fireEvent.click(
+      within(dialog).getByRole("radio", { name: "This screen only" }),
+    );
+    fireEvent.click(within(dialog).getByRole("checkbox", { name: "Complete" }));
+    expect(dialog).toHaveTextContent(
+      "Screen 01 Landing · version live · Backlog, In progress, Won't fix · 1 item",
+    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Download" }));
+
+    expect(onClose).toHaveBeenCalled();
+    const [format, markdown] = exported[0];
+    expect(format).toBe("markdown");
+    // Pin numbers come from the full set, so pin 2 stays pin 2.
+    expect(markdown).toContain("**Pin 2 ");
+    expect(markdown).toContain("Landing two");
+    expect(markdown).not.toContain("Landing one");
+    expect(markdown).not.toContain("Dashboard one");
+  });
+
+  it("disables Download when nothing matches and closes on Escape", () => {
+    const onClose = vi.fn();
+    render(
+      <ExportDialog
+        feedback={[]}
+        onClose={onClose}
+        projectId="example"
+        screens={twoScreens}
+        selectedScreenId="landing"
+        version="live"
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Download" })).toBeDisabled();
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("opens the dialog from the footer Export button", async () => {
+    await seed("landing", "Landing one", 0);
+    render(<App />);
+    const button = await screen.findByRole("button", { name: "Export" });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+    const dialog = screen.getByRole("dialog", { name: "Export feedback" });
+    expect(dialog).toHaveTextContent("1 item");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Export Markdown" }),
+    ).toBeNull();
   });
 
   it("numbers filtered exports from the full set", () => {

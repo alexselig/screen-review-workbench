@@ -211,6 +211,14 @@ h1 {
   container-type: size;
 }
 
+/* The page scrolls; the screen stays in view while the feedback list moves. */
+.workbench-grid > .review-canvas {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: calc(100vh - 96px);
+}
+
 /* The frame keeps the screen's aspect ratio and fits the canvas both ways. */
 .screen-frame {
   position: relative;
@@ -360,6 +368,11 @@ h1 {
   border: 0;
 }
 
+/* Fullscreen is a fixed overlay with no page to scroll, so its panels scroll. */
+.fullscreen-edge-panel .feedback-panel {
+  overflow-y: auto;
+}
+
 .empty-canvas {
   max-width: min(620px, 80%);
   padding: 32px;
@@ -379,7 +392,6 @@ h1 {
   flex-direction: column;
   gap: 16px;
   border-left: 1px solid var(--ink);
-  overflow: auto;
 }
 
 .feedback-panel p {
@@ -710,7 +722,9 @@ h1 {
     display: none;
   }
 
-  .review-canvas {
+  .review-canvas,
+  .workbench-grid > .review-canvas {
+    position: relative;
     height: min(70vh, 640px);
     padding: 72px 16px 16px;
   }
@@ -731,7 +745,8 @@ h1 {
     display: inline;
   }
 
-  .review-canvas {
+  .review-canvas,
+  .workbench-grid > .review-canvas {
     height: 360px;
   }
 

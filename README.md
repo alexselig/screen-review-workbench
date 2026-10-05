@@ -22,8 +22,13 @@ The server binds to `http://127.0.0.1:4173`.
 - Wide and compact numbered navigation with hover/focus expansion and pinning.
 - Fullscreen review with overlay navigation and feedback edge panels.
 - Stable screen manifests and a local Ship a Skill registration importer.
-- Screen pins with category, priority, status, filters, autosaved notes, and
-  deterministic JSON/Markdown exports.
+- Screen pins placed on an aspect-locked screen frame, so they stay put at any
+  window size. Each comment card leads with the same numbered dot as its pin.
+- Category, priority, status, filters, autosaved notes, two-step delete, and
+  deterministic JSON/Markdown exports of every screen (with the active filters
+  and scope stated in the file).
+- Responsive layout: at 900px and below, screens become a numbered strip and
+  the feedback panel stacks under the canvas.
 - Atomic file storage with serialized mutations, conflict checks, and restart
   recovery.
 

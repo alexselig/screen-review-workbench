@@ -34,8 +34,9 @@ The server binds to `http://127.0.0.1:4173`.
   `SCREEN_REVIEW_PROJECTS`) and each screen's capture is shown at full width.
   Tall captures make the page longer; the page is the scroll area, the screen
   list keeps its place, and the feedback panel follows along.
-- A fixed action bar keeps Prev/Next, the current screen, and **Add feedback**
-  in reach at the bottom of the window. The address bar records the project,
+- A fixed action bar keeps the fullscreen toggle (left), Prev/Next and the
+  current screen (centre), and **Add feedback** (right) in reach at the bottom
+  of the window. The address bar records the project,
   version, and screen, so a reload or shared link opens the same place.
 
 ### Keyboard

@@ -46,7 +46,7 @@ async function addFeedbackAtCentre(note: string) {
     expect(screen.getByRole("button", { name: "Add feedback" })).toBeEnabled(),
   );
   fireEvent.click(screen.getByRole("button", { name: "Add feedback" }));
-  const frame = screen.getByTestId("canvas");
+  const frame = screen.getByTestId("screen-frame");
   fakeRect(frame);
   fireEvent.click(frame, { clientX: 500, clientY: 350 });
   fireEvent.change(screen.getByRole("textbox", { name: "Feedback note" }), {
@@ -75,6 +75,19 @@ describe("feedback workflow integration", () => {
       left: "50%",
       top: "50%",
     });
+  });
+
+  it("numbers each comment with the same dot as its pin", async () => {
+    render(<App />);
+    await addFeedbackAtCentre("First note.");
+    await screen.findByTestId("feedback-pin", {}, { timeout: 2000 });
+
+    const pin = screen.getByTestId("feedback-pin");
+    const cardDot = screen.getByLabelText("Pin 1", { selector: ".feedback-comment .pin-dot" });
+    expect(pin).toHaveTextContent("1");
+    expect(cardDot).toHaveTextContent("1");
+    expect(pin).toHaveClass("pin-dot");
+    expect(cardDot.className).toBe(pin.className.replace("feedback-pin ", ""));
   });
 
   it("shows a load error with retry instead of an empty review", async () => {

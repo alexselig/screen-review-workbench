@@ -201,12 +201,33 @@ h1 {
   position: relative;
   display: grid;
   min-width: 0;
+  min-height: 360px;
   place-items: center;
-  padding: 32px;
+  padding: 72px 32px 32px;
+  container-type: size;
 }
 
-.review-canvas[data-adding-feedback="true"] {
+/* The frame keeps the screen's aspect ratio and fits the canvas both ways. */
+.screen-frame {
+  position: relative;
+  display: grid;
+  width: min(100cqw, calc(100cqh * var(--screen-ratio-value, 1.44)));
+  aspect-ratio: var(--screen-ratio, 1440 / 1000);
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-alt);
+}
+
+.review-canvas[data-adding-feedback="true"] .screen-frame {
   cursor: crosshair;
+}
+
+.screen-frame-size {
+  display: block;
+  margin-top: 8px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .canvas-fullscreen-button {
@@ -315,8 +336,9 @@ h1 {
 }
 
 .empty-canvas {
-  max-width: 620px;
+  max-width: min(620px, 80%);
   padding: 32px;
+  background: var(--surface);
   border: 1px solid var(--line-strong);
   border-left: 12px solid var(--bauhaus-blue);
 }
@@ -418,30 +440,31 @@ h1 {
 .feedback-comment {
   display: grid;
   width: 100%;
-  gap: 5px;
-  padding: 10px;
+  grid-template-columns: 30px minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 4px;
+  align-items: start;
+  padding: 12px;
   border: 1px solid var(--line);
-  border-left: 5px solid var(--bauhaus-orange);
   background: var(--surface);
   color: var(--ink);
   text-align: left;
   cursor: pointer;
 }
 
-.feedback-comment[aria-pressed="true"] {
-  border-color: var(--bauhaus-blue);
-  border-left-color: var(--bauhaus-blue);
+.feedback-comment > .pin-dot {
+  grid-row: 1 / span 3;
 }
 
-.feedback-comment span {
+.feedback-comment[aria-pressed="true"] {
+  border-color: var(--bauhaus-blue);
+  box-shadow: inset 0 0 0 1px var(--bauhaus-blue);
+}
+
+.feedback-comment-meta {
   color: var(--ink-muted);
   font-size: 11px;
   text-transform: uppercase;
-}
-
-.feedback-comment.status-resolved,
-.feedback-comment.status-wont_fix {
-  border-left-color: var(--line-strong);
 }
 
 .feedback-editor {
@@ -490,13 +513,12 @@ h1 {
   pointer-events: none;
 }
 
-.feedback-pin {
-  position: absolute;
+/* One dot style for canvas pins and comment cards. */
+.pin-dot {
   display: grid;
   width: 30px;
   height: 30px;
   place-items: center;
-  transform: translate(-50%, -50%);
   border: 2px solid var(--surface);
   border-radius: 50%;
   background: var(--bauhaus-orange);
@@ -504,17 +526,33 @@ h1 {
   color: var(--ink);
   font-size: 12px;
   font-weight: 700;
-  pointer-events: auto;
-  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  padding: 0;
+  flex: none;
 }
 
-.feedback-pin[aria-pressed="true"] {
+.pin-dot.priority-blocking {
+  border-color: var(--ink);
+}
+
+.pin-dot.is-closed {
+  background: var(--surface);
+  color: var(--ink-muted);
+  outline: 2px solid var(--ink-muted);
+}
+
+.pin-dot.is-selected {
   background: var(--bauhaus-blue);
   color: var(--on-blue);
+  outline-color: var(--ink);
 }
 
-.feedback-pin.priority-blocking {
-  border-color: var(--ink);
+.feedback-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .feedback-pin-draft {

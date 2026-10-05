@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+} from "react";
 
 import {
   FeedbackInspector,
   feedbackPinId,
+  pinDotClassName,
 } from "./components/feedback-inspector";
 import { FullscreenReview } from "./components/fullscreen-review";
 import { ScreenRail, type RailMode } from "./components/screen-rail";
@@ -186,21 +193,6 @@ export function App() {
       className="review-canvas"
       data-adding-feedback={addingFeedback}
       data-testid="canvas"
-      onClick={(event) => {
-        if (
-          !addingFeedback ||
-          !ready ||
-          (event.target instanceof HTMLElement &&
-            event.target.closest("button"))
-        ) {
-          return;
-        }
-        const rect = event.currentTarget.getBoundingClientRect();
-        setDraftPin(
-          normalizePinCoordinates(event.clientX, event.clientY, rect),
-        );
-        setSelectedFeedbackId(null);
-      }}
     >
       <button
         className="canvas-fullscreen-button"
@@ -209,49 +201,81 @@ export function App() {
       >
         View fullscreen
       </button>
-      <div className="empty-canvas">
-        <span className="eyebrow">
-          {String(selected.ordinal).padStart(2, "0")} / {screens.length}
-        </span>
-        <h2>{selected.title}</h2>
-      </div>
-      <div className="feedback-pin-layer" aria-label="Screen feedback pins">
-        {visibleFeedback
-          .filter(
-            (item) =>
-              item.screenId === selectedId && item.version === version,
-          )
-          .map((item) => (
-            <button
-              aria-controls={`feedback-comment-${item.id}`}
-              aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}: ${item.note}`}
-              aria-pressed={item.id === selectedFeedbackId}
-              className={`feedback-pin priority-${item.priority.toLowerCase()}`}
-              data-testid="feedback-pin"
-              id={feedbackPinId(item.id)}
-              key={item.id}
-              onClick={() => {
-                setSelectedFeedbackId(item.id);
-                document.getElementById(`feedback-comment-${item.id}`)?.focus();
-              }}
-              style={{ left: `${item.x * 100}%`, top: `${item.y * 100}%` }}
-              type="button"
-            >
-              {pinNumbers.get(item.id) ?? 0}
-            </button>
-          ))}
-        {draftPin ? (
-          <span
-            className="feedback-pin feedback-pin-draft"
-            data-testid="draft-pin"
-            style={{
-              left: `${draftPin.x * 100}%`,
-              top: `${draftPin.y * 100}%`,
-            }}
-          >
-            +
+      <div
+        className="screen-frame"
+        data-testid="screen-frame"
+        onClick={(event) => {
+          if (
+            !addingFeedback ||
+            !ready ||
+            (event.target instanceof HTMLElement &&
+              event.target.closest("button"))
+          ) {
+            return;
+          }
+          // Pins are stored relative to the screen frame, which keeps the
+          // screen's aspect ratio, so they land on the same spot at any size.
+          const rect = event.currentTarget.getBoundingClientRect();
+          setDraftPin(
+            normalizePinCoordinates(event.clientX, event.clientY, rect),
+          );
+          setSelectedFeedbackId(null);
+        }}
+        style={
+          {
+            "--screen-ratio": `${selected.viewport.width} / ${selected.viewport.height}`,
+            "--screen-ratio-value":
+              selected.viewport.width / selected.viewport.height,
+          } as CSSProperties
+        }
+      >
+        <div className="empty-canvas">
+          <span className="eyebrow">
+            {String(selected.ordinal).padStart(2, "0")} / {screens.length}
           </span>
-        ) : null}
+          <h2>{selected.title}</h2>
+          <span className="screen-frame-size">
+            {selected.viewport.width} × {selected.viewport.height}
+          </span>
+        </div>
+        <div className="feedback-pin-layer" aria-label="Screen feedback pins">
+          {visibleFeedback
+            .filter(
+              (item) =>
+                item.screenId === selectedId && item.version === version,
+            )
+            .map((item) => (
+              <button
+                aria-controls={`feedback-comment-${item.id}`}
+                aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}: ${item.note}`}
+                aria-pressed={item.id === selectedFeedbackId}
+                className={`feedback-pin ${pinDotClassName(item, item.id === selectedFeedbackId)}`}
+                data-testid="feedback-pin"
+                id={feedbackPinId(item.id)}
+                key={item.id}
+                onClick={() => {
+                  setSelectedFeedbackId(item.id);
+                  document.getElementById(`feedback-comment-${item.id}`)?.focus();
+                }}
+                style={{ left: `${item.x * 100}%`, top: `${item.y * 100}%` }}
+                type="button"
+              >
+                {pinNumbers.get(item.id) ?? 0}
+              </button>
+            ))}
+          {draftPin ? (
+            <span
+              className="feedback-pin pin-dot feedback-pin-draft"
+              data-testid="draft-pin"
+              style={{
+                left: `${draftPin.x * 100}%`,
+                top: `${draftPin.y * 100}%`,
+              }}
+            >
+              +
+            </span>
+          ) : null}
+        </div>
       </div>
     </section>
   );

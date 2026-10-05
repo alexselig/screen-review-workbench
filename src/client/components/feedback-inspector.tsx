@@ -6,7 +6,11 @@ import {
   type ChangeEvent,
 } from "react";
 
-import { serializeJson, serializeMarkdown } from "../../shared/export";
+import {
+  createPinNumbers,
+  serializeJson,
+  serializeMarkdown,
+} from "../../shared/export";
 import {
   FEEDBACK_CATEGORIES,
   FEEDBACK_PRIORITIES,
@@ -133,6 +137,19 @@ function download(contents: string, fileName: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+// Shared by canvas pins and comment cards so a number reads as the same
+// object in both places.
+export function pinDotClassName(item: FeedbackRecord, selected: boolean) {
+  return [
+    "pin-dot",
+    `priority-${item.priority.toLowerCase()}`,
+    item.status === "RESOLVED" || item.status === "WONT_FIX" ? "is-closed" : "",
+    selected ? "is-selected" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 export function feedbackPinId(id: string) {
   return `feedback-pin-${id}`;
 }
@@ -226,15 +243,20 @@ export function FeedbackInspector({
       ),
     [feedback, selectedScreenId, version],
   );
+  const pinNumbers = useMemo(() => createPinNumbers(feedback), [feedback]);
   const visibleFeedback = useMemo(
     () =>
-      screenFeedback.filter(
-        (item) =>
-          (!filters.category || item.category === filters.category) &&
-          (!filters.priority || item.priority === filters.priority) &&
-          (!filters.status || item.status === filters.status),
-      ),
-    [filters, screenFeedback],
+      screenFeedback
+        .filter(
+          (item) =>
+            (!filters.category || item.category === filters.category) &&
+            (!filters.priority || item.priority === filters.priority) &&
+            (!filters.status || item.status === filters.status),
+        )
+        .sort(
+          (a, b) => (pinNumbers.get(a.id) ?? 0) - (pinNumbers.get(b.id) ?? 0),
+        ),
+    [filters, pinNumbers, screenFeedback],
   );
   const selectedRecord =
     screenFeedback.find((item) => item.id === selectedFeedbackId) ?? null;
@@ -563,11 +585,17 @@ export function FeedbackInspector({
               }}
               type="button"
             >
-              <span>
+              <span
+                aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}`}
+                className={pinDotClassName(item, item.id === selectedFeedbackId)}
+              >
+                {pinNumbers.get(item.id) ?? 0}
+              </span>
+              <span className="feedback-comment-meta">
                 {readable(item.priority)} · {readable(item.category)}
               </span>
               <strong>{item.note}</strong>
-              <span>{readable(item.status)}</span>
+              <span className="feedback-comment-meta">{readable(item.status)}</span>
             </button>
           </li>
         ))}

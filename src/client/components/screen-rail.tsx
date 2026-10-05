@@ -23,6 +23,7 @@ export function ScreenRail({
   const [pinned, setPinned] = useState(false);
   const expanded = mode === "wide" || temporaryExpanded || pinned;
   let previousGroup = "";
+  let groupIndex = -1;
   const navRef = useRef<HTMLElement>(null);
 
   // Keep the current screen visible in the list without moving the page.
@@ -99,11 +100,12 @@ export function ScreenRail({
       <ol>
         {screens.map((screen) => {
           const showGroup = screen.group !== previousGroup;
+          if (showGroup) groupIndex += 1;
           previousGroup = screen.group;
           return (
             <li key={screen.id}>
               {showGroup ? (
-                <h2 title={screen.group}>
+                <h2 data-tone={groupIndex % 4} title={screen.group}>
                   <span className="group-full">{screen.group}</span>
                   <span aria-hidden="true" className="group-short">
                     {screen.group.replace(/[^A-Za-z0-9]/g, "").slice(0, 3)}

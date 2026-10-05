@@ -391,10 +391,6 @@ h1 {
   white-space: nowrap;
 }
 
-.screen-rail ol h2 .group-short {
-  display: none;
-}
-
 /* Compact mode keeps section rules at full height so rows never move when the
    rail expands on hover; only the label swaps to a short form. */
 .screen-rail[data-mode="compact"] ol h2 {
@@ -407,12 +403,34 @@ h1 {
   text-overflow: clip;
 }
 
+.screen-rail ol h2 .group-short {
+  display: none;
+}
+
+/* Collapsed: the tinted band keeps its height and shows the abbreviation. */
 .screen-rail[data-mode="compact"]:not([data-expanded="true"]) ol h2 .group-full {
   display: none;
 }
 
 .screen-rail[data-mode="compact"]:not([data-expanded="true"]) ol h2 .group-short {
   display: inline;
+}
+
+/* Each section gets a quiet tint so sections read apart, even collapsed. */
+.screen-rail ol h2[data-tone="0"] {
+  background: #e3e9fd;
+}
+
+.screen-rail ol h2[data-tone="1"] {
+  background: #fde6d8;
+}
+
+.screen-rail ol h2[data-tone="2"] {
+  background: #fbefcc;
+}
+
+.screen-rail ol h2[data-tone="3"] {
+  background: #e3e5e9;
 }
 
 .screen-rail li button {
@@ -649,6 +667,18 @@ h1 {
   border-right: 0;
   border-left: 1px solid var(--ink);
   background: var(--bauhaus-orange);
+  color: var(--ink);
+}
+
+/* Collapsed handles stay grey so they don't compete with the screen. */
+.fullscreen-edge:not([data-open="true"]) .fullscreen-edge-handle {
+  background: #dcdee2;
+  color: #4a4d55;
+  border-color: #b9bcc3;
+}
+
+.fullscreen-edge:not([data-open="true"]) .fullscreen-edge-handle:hover {
+  background: #c9ccd2;
   color: var(--ink);
 }
 

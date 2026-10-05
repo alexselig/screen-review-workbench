@@ -35,6 +35,24 @@ describe("action bar", () => {
     ).toBeNull();
   });
 
+  it("toggles fullscreen from the bottom-left of the footer", async () => {
+    render(<App />);
+    const view = within(actionBar()).getByRole("button", { name: "View fullscreen" });
+    expect(view.closest(".action-bar-start")).not.toBeNull();
+    fireEvent.click(view);
+    const exit = await within(actionBar()).findByRole("button", { name: "Exit fullscreen" });
+    expect(exit.closest(".action-bar-start")).not.toBeNull();
+    fireEvent.click(exit);
+    expect(await within(actionBar()).findByRole("button", { name: "View fullscreen" })).toBeVisible();
+  });
+
+  it("centres screen navigation in the footer", () => {
+    render(<App />);
+    const nav = within(actionBar()).getByRole("button", { name: "Next screen" });
+    expect(nav.closest(".action-bar-nav")?.parentElement).toBe(actionBar());
+    expect(actionBar().children[1]).toBe(nav.closest(".action-bar-nav"));
+  });
+
   it("starts a pin with Cmd+F or Ctrl+F instead of the browser find bar", async () => {
     render(<App />);
     const add = within(actionBar()).getByRole("button", { name: "Add feedback" });

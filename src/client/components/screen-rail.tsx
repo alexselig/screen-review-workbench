@@ -102,7 +102,14 @@ export function ScreenRail({
           previousGroup = screen.group;
           return (
             <li key={screen.id}>
-              {showGroup ? <h2>{screen.group}</h2> : null}
+              {showGroup ? (
+                <h2 title={screen.group}>
+                  <span className="group-full">{screen.group}</span>
+                  <span aria-hidden="true" className="group-short">
+                    {screen.group.replace(/[^A-Za-z0-9]/g, "").slice(0, 3)}
+                  </span>
+                </h2>
+              ) : null}
               <button
                 aria-current={screen.id === selectedId ? "page" : undefined}
                 aria-label={`${String(screen.ordinal).padStart(2, "0")}. ${screen.title}`}

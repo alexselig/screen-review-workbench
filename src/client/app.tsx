@@ -443,22 +443,6 @@ export function App() {
               Open live
             </a>
           ) : null}
-          <button
-            aria-label="View fullscreen"
-            className="canvas-fullscreen-button icon-button"
-            onClick={() => setFullscreen(true)}
-            title="View fullscreen"
-            type="button"
-          >
-            <svg aria-hidden="true" height="18" viewBox="0 0 18 18" width="18">
-              <path
-                d="M2 7V2h5M16 7V2h-5M2 11v5h5M16 11v5h-5"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.75"
-              />
-            </svg>
-          </button>
         </div>
       </header>
       <div
@@ -553,6 +537,35 @@ export function App() {
 
   const actionBar = (
     <footer className="action-bar" aria-label="Review actions">
+      <div className="action-bar-start">
+        <button
+          aria-keyshortcuts={fullscreen ? "Escape" : undefined}
+          aria-label={fullscreen ? "Exit fullscreen" : "View fullscreen"}
+          aria-pressed={fullscreen}
+          className="icon-button action-bar-fullscreen"
+          onClick={() => setFullscreen((value) => !value)}
+          title={fullscreen ? "Exit fullscreen (Esc)" : "View fullscreen"}
+          type="button"
+        >
+          <svg aria-hidden="true" height="18" viewBox="0 0 18 18" width="18">
+            <path
+              d={
+                fullscreen
+                  ? "M7 2v5H2M11 2v5h5M7 16v-5H2M11 16v-5h5"
+                  : "M2 7V2h5M16 7V2h-5M2 11v5h5M16 11v5h-5"
+              }
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.75"
+            />
+          </svg>
+        </button>
+        {addingFeedback && !draftPin ? (
+          <p className="action-bar-hint" role="status">
+            Click the screen to place a pin · Esc to cancel
+          </p>
+        ) : null}
+      </div>
       <div className="action-bar-nav">
         <button
           aria-label="Previous screen"
@@ -579,11 +592,6 @@ export function App() {
           Next ›
         </button>
       </div>
-      {addingFeedback && !draftPin ? (
-        <p className="action-bar-hint" role="status">
-          Click the screen to place a pin · Esc to cancel
-        </p>
-      ) : null}
       <button
         aria-keyshortcuts={isMac ? "Meta+F" : "Control+F"}
         aria-pressed={addingFeedback}

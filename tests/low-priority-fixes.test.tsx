@@ -61,7 +61,6 @@ describe("export scope", () => {
         onExport={(_format, contents) => exported.push(contents)}
         onRecoverDraft={vi.fn()}
         onSelectFeedback={vi.fn()}
-        onStartPin={vi.fn()}
         onUpdate={vi.fn()}
         projectId="example"
         screens={[

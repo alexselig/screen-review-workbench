@@ -178,7 +178,6 @@ export function FeedbackInspector({
   feedback,
   draftPin,
   selectedFeedbackId,
-  onStartPin,
   onCancelDraft,
   onRecoverDraft,
   onSelectFeedback,
@@ -197,7 +196,6 @@ export function FeedbackInspector({
   feedback: FeedbackRecord[];
   draftPin: Pin | null;
   selectedFeedbackId: string | null;
-  onStartPin: () => void;
   onCancelDraft: () => void;
   onRecoverDraft: (pin: Pin) => void;
   onSelectFeedback: (id: string | null) => void;
@@ -560,15 +558,6 @@ export function FeedbackInspector({
           <span className="eyebrow">Feedback</span>
           <strong>{visibleFeedback.length} visible</strong>
         </div>
-        <button
-          aria-pressed={adding}
-          className="feedback-add-button"
-          disabled={!ready}
-          onClick={onStartPin}
-          type="button"
-        >
-          Add feedback
-        </button>
       </header>
 
       <div className="feedback-filters" aria-label="Feedback filters">

@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type RefObject,
 } from "react";
 
 import {
@@ -16,29 +17,83 @@ import { FullscreenReview } from "./components/fullscreen-review";
 import { ScreenRail, type RailMode } from "./components/screen-rail";
 import { createPinNumbers } from "../shared/export";
 import {
+  isOpenFeedback,
   normalizePinCoordinates,
   type CreateFeedbackInput,
   type FeedbackRecord,
   type UpdateFeedbackInput,
 } from "../shared/feedback";
-import type { ReviewScreen } from "../shared/manifest";
+import {
+  captureUrl,
+  type PublicProject,
+  type PublicScreen,
+} from "../shared/projects";
 import {
   FeedbackApiError,
   fetchFeedback,
+  fetchProjects,
   migrateLegacyFeedback,
   patchFeedback,
   postFeedback,
   removeFeedback,
 } from "./feedback-api";
 
-const projectId = "example";
-const version = "live";
+// Shown only when the server cannot list projects, so feedback still works.
+const FALLBACK_PROJECT: PublicProject = {
+  id: "example",
+  name: "Example project",
+  versions: ["live"],
+  screens: [
+    { id: "landing", ordinal: 1, title: "Public landing", group: "Access", viewport: { width: 1440, height: 1000 }, hasCapture: false },
+    { id: "bootstrap", ordinal: 2, title: "Session bootstrap", group: "Access", viewport: { width: 1440, height: 1000 }, hasCapture: false },
+    { id: "dashboard", ordinal: 3, title: "Populated dashboard", group: "Portfolio", viewport: { width: 1440, height: 1000 }, hasCapture: false },
+  ],
+};
 
-const screens: ReviewScreen[] = [
-  { id: "landing", ordinal: 1, title: "Public landing", group: "Access", viewport: { width: 1440, height: 1000 } },
-  { id: "bootstrap", ordinal: 2, title: "Session bootstrap", group: "Access", viewport: { width: 1440, height: 1000 } },
-  { id: "dashboard", ordinal: 3, title: "Populated dashboard", group: "Portfolio", viewport: { width: 1440, height: 1000 } },
-];
+type Place = { project?: string; version?: string; screen?: string };
+
+function readPlace(): Place {
+  const params = new URLSearchParams(window.location.hash.slice(1));
+  return {
+    project: params.get("project") ?? undefined,
+    version: params.get("version") ?? undefined,
+    screen: params.get("screen") ?? undefined,
+  };
+}
+
+function isTyping(target: EventTarget | null) {
+  return (
+    target instanceof HTMLElement &&
+    (target.isContentEditable ||
+      ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
+  );
+}
+
+const isMac =
+  typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+
+// Keeps a side column in view while the page scrolls. A column shorter than
+// the window sticks to the top; a taller one scrolls with the page until its
+// end is reached, so the page is the only scroll area.
+function useFollowPage(ref: RefObject<HTMLElement | null>, gap = 0) {
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const update = () => {
+      const room = window.innerHeight - gap;
+      element.style.top = `${Math.min(0, room - element.offsetHeight)}px`;
+    };
+    update();
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    observer?.observe(element);
+    window.addEventListener("resize", update);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, [ref, gap]);
+}
 
 type LoadState =
   | { kind: "loading" }
@@ -47,7 +102,23 @@ type LoadState =
 
 export function App() {
   const [railMode, setRailMode] = useState<RailMode>("wide");
-  const [selectedId, setSelectedId] = useState(screens[0].id);
+  const initialPlace = useMemo(readPlace, []);
+  const [projects, setProjects] = useState<PublicProject[] | null>(null);
+  const [projectProblems, setProjectProblems] = useState<string[]>([]);
+  const [projectId, setProjectId] = useState(initialPlace.project ?? "");
+  const [versionChoice, setVersionChoice] = useState(initialPlace.version ?? "");
+  const [selectedChoice, setSelectedId] = useState(initialPlace.screen ?? "");
+  const project =
+    projects?.find((item) => item.id === projectId) ??
+    projects?.[0] ??
+    FALLBACK_PROJECT;
+  const screens: PublicScreen[] = project.screens;
+  const version = project.versions.includes(versionChoice)
+    ? versionChoice
+    : project.versions.at(-1)!;
+  const selectedId = screens.some((item) => item.id === selectedChoice)
+    ? selectedChoice
+    : screens[0]!.id;
   const [fullscreen, setFullscreen] = useState(false);
   const [feedbackRecords, setFeedbackRecords] = useState<FeedbackRecord[]>([]);
   const [loadState, setLoadState] = useState<LoadState>({ kind: "loading" });
@@ -62,23 +133,79 @@ export function App() {
   const [selectedFeedbackId, setSelectedFeedbackId] = useState<string | null>(
     null,
   );
-  const selected = useMemo(
-    () => screens.find((screen) => screen.id === selectedId) ?? screens[0],
-    [selectedId],
-  );
+  const selected = screens.find((item) => item.id === selectedId)!;
+  const selectedIndex = screens.indexOf(selected);
+  const [captureFailed, setCaptureFailed] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const gridRef = useRef<HTMLElement>(null);
+  useFollowPage(panelRef, 64);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchProjects()
+      .then((list) => {
+        if (cancelled) return;
+        setProjects(list.projects.length > 0 ? list.projects : [FALLBACK_PROJECT]);
+        setProjectProblems(list.problems);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setProjects([FALLBACK_PROJECT]);
+        setProjectProblems([
+          `Projects could not load (${error instanceof Error ? error.message : "unknown error"}); showing the example project.`,
+        ]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!projects) return;
+    const params = new URLSearchParams({
+      project: project.id,
+      version,
+      screen: selectedId,
+    });
+    window.history.replaceState(null, "", `#${params}`);
+  }, [projects, project.id, version, selectedId]);
+
+  useEffect(() => setCaptureFailed(false), [project.id, version, selectedId]);
+
+  // Follow links and edits to the address while the app is open.
+  useEffect(() => {
+    const follow = () => {
+      const place = readPlace();
+      if (place.project) setProjectId(place.project);
+      if (place.version) setVersionChoice(place.version);
+      if (place.screen) setSelectedId(place.screen);
+    };
+    window.addEventListener("hashchange", follow);
+    return () => window.removeEventListener("hashchange", follow);
+  }, []);
   const pinNumbers = useMemo(
     () => createPinNumbers(feedbackRecords),
     [feedbackRecords],
   );
   const ready = loadState.kind === "ready";
+  const openCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of feedbackRecords) {
+      if (item.version === version && isOpenFeedback(item)) {
+        counts.set(item.screenId, (counts.get(item.screenId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [feedbackRecords, version]);
 
   useEffect(() => {
+    if (!projects) return;
     let cancelled = false;
     setLoadState({ kind: "loading" });
     (async () => {
       try {
-        const warning = await migrateLegacyFeedback(projectId);
-        const records = await fetchFeedback(projectId);
+        const warning = await migrateLegacyFeedback(project.id);
+        const records = await fetchFeedback(project.id);
         if (cancelled) return;
         setFeedbackRecords(records);
         setNotice(warning);
@@ -95,7 +222,8 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [loadAttempt]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadAttempt, projects, project.id]);
 
   useEffect(() => {
     if (!addingFeedback || draftPin) return;
@@ -158,11 +286,11 @@ export function App() {
   const createFeedback = useCallback(
     (input: CreateFeedbackInput) =>
       enqueue(async () => {
-        const created = await postFeedback(projectId, input);
+        const created = await postFeedback(project.id, input);
         upsertRecord(created);
         return created;
       }),
-    [enqueue, upsertRecord],
+    [enqueue, project.id, upsertRecord],
   );
 
   const updateFeedback = useCallback(
@@ -170,7 +298,7 @@ export function App() {
       enqueue(() =>
         withConflictRefresh(async () => {
           const expectedUpdatedAt = latestOwnRevision(id, input.expectedUpdatedAt);
-          const updated = await patchFeedback(projectId, id, {
+          const updated = await patchFeedback(project.id, id, {
             ...input,
             expectedUpdatedAt,
           });
@@ -179,7 +307,7 @@ export function App() {
           return updated;
         }),
       ),
-    [enqueue, latestOwnRevision, upsertRecord, withConflictRefresh],
+    [enqueue, latestOwnRevision, project.id, upsertRecord, withConflictRefresh],
   );
 
   const deleteFeedback = useCallback(
@@ -187,7 +315,7 @@ export function App() {
       enqueue(() =>
         withConflictRefresh(async () => {
           await removeFeedback(
-            projectId,
+            project.id,
             id,
             latestOwnRevision(id, expectedUpdatedAt),
           );
@@ -197,7 +325,7 @@ export function App() {
           setSelectedFeedbackId((current) => (current === id ? null : current));
         }),
       ),
-    [enqueue, latestOwnRevision, withConflictRefresh],
+    [enqueue, latestOwnRevision, project.id, withConflictRefresh],
   );
 
   const selectScreen = useCallback((id: string) => {
@@ -205,13 +333,66 @@ export function App() {
     setAddingFeedback(false);
     setDraftPin(null);
     setSelectedFeedbackId(null);
+    // Start each screen at its top, without jumping when it is already in view.
+    const grid = gridRef.current;
+    if (grid && grid.getBoundingClientRect().top < 0) {
+      window.scrollTo({ top: window.scrollY + grid.getBoundingClientRect().top });
+    }
   }, []);
+
+  const stepScreen = useCallback(
+    (delta: number) => {
+      const next = screens[selectedIndex + delta];
+      if (next) selectScreen(next.id);
+    },
+    [screens, selectedIndex, selectScreen],
+  );
+
+  const startPin = useCallback(() => {
+    if (!ready) return;
+    setAddingFeedback(true);
+    setDraftPin(null);
+    setSelectedFeedbackId(null);
+  }, [ready]);
+
+  const switchProject = useCallback((id: string) => {
+    setProjectId(id);
+    setVersionChoice("");
+    setSelectedId("");
+    setFeedbackRecords([]);
+    setAddingFeedback(false);
+    setDraftPin(null);
+    setSelectedFeedbackId(null);
+  }, []);
+
+  // ⌘F / Ctrl+F adds feedback instead of opening the browser's find bar;
+  // ← and → (or [ and ]) step through screens when not typing.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === "f" && (event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+        event.preventDefault();
+        startPin();
+        return;
+      }
+      if (event.metaKey || event.ctrlKey || event.altKey || isTyping(event.target)) return;
+      if (event.key === "ArrowRight" || event.key === "]") {
+        event.preventDefault();
+        stepScreen(1);
+      } else if (event.key === "ArrowLeft" || event.key === "[") {
+        event.preventDefault();
+        stepScreen(-1);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [startPin, stepScreen]);
 
   const navigation = (
     <ScreenRail
       mode={railMode}
       onModeChange={setRailMode}
       onSelect={selectScreen}
+      openCounts={openCounts}
       screens={screens}
       selectedId={selectedId}
     />
@@ -232,15 +413,11 @@ export function App() {
         setDraftPin(pin);
       }}
       onSelectFeedback={setSelectedFeedbackId}
-      onStartPin={() => {
-        setAddingFeedback(true);
-        setDraftPin(null);
-        setSelectedFeedbackId(null);
-      }}
       onUpdate={updateFeedback}
       onDelete={deleteFeedback}
       onVisibleFeedbackChange={setVisibleFeedback}
-      projectId={projectId}
+      key={project.id}
+      projectId={project.id}
       screens={screens}
       selectedFeedbackId={selectedFeedbackId}
       selectedScreenId={selectedId}
@@ -253,18 +430,28 @@ export function App() {
       data-adding-feedback={addingFeedback}
       data-testid="canvas"
     >
-      <button
-        className="canvas-fullscreen-button"
-        onClick={() => setFullscreen(true)}
-        type="button"
-      >
-        View fullscreen
-      </button>
-      {addingFeedback && !draftPin ? (
-        <p className="canvas-hint" role="status">
-          Click the screen to place a pin · Esc to cancel
-        </p>
-      ) : null}
+      <header className="canvas-header">
+        <div>
+          <span className="eyebrow">
+            {String(selected.ordinal).padStart(2, "0")} / {screens.length} · {selected.group}
+          </span>
+          <h2>{selected.title}</h2>
+        </div>
+        <div className="canvas-header-actions">
+          {selected.liveUrl ? (
+            <a href={selected.liveUrl} rel="noreferrer" target="_blank">
+              Open live
+            </a>
+          ) : null}
+          <button
+            className="canvas-fullscreen-button"
+            onClick={() => setFullscreen((value) => !value)}
+            type="button"
+          >
+            {fullscreen ? "Exit fullscreen" : "View fullscreen"}
+          </button>
+        </div>
+      </header>
       <div
         className="screen-frame"
         data-testid="screen-frame"
@@ -288,20 +475,31 @@ export function App() {
         style={
           {
             "--screen-ratio": `${selected.viewport.width} / ${selected.viewport.height}`,
-            "--screen-ratio-value":
-              selected.viewport.width / selected.viewport.height,
+            "--screen-width": `${selected.viewport.width}px`,
           } as CSSProperties
         }
       >
-        <div className="empty-canvas">
-          <span className="eyebrow">
-            {String(selected.ordinal).padStart(2, "0")} / {screens.length}
-          </span>
-          <h2>{selected.title}</h2>
-          <span className="screen-frame-size">
-            {selected.viewport.width} × {selected.viewport.height}
-          </span>
-        </div>
+        {selected.hasCapture && !captureFailed ? (
+          <img
+            alt={`${selected.title} capture`}
+            className="screen-capture"
+            draggable={false}
+            key={`${project.id}/${version}/${selected.id}`}
+            onError={() => setCaptureFailed(true)}
+            src={captureUrl(project.id, version, selected.id)}
+          />
+        ) : (
+          <div className="empty-canvas">
+            <span className="eyebrow">
+              {String(selected.ordinal).padStart(2, "0")} / {screens.length}
+            </span>
+            <h2>{selected.title}</h2>
+            <span className="screen-frame-size">
+              {captureFailed ? "Capture could not load · " : selected.hasCapture ? "" : "No capture · "}
+              {selected.viewport.width} × {selected.viewport.height}
+            </span>
+          </div>
+        )}
         <div className="feedback-pin-layer" aria-label="Screen feedback pins">
           {visibleFeedback
             .filter(
@@ -344,15 +542,65 @@ export function App() {
     </section>
   );
 
+  const actionBar = (
+    <footer className="action-bar" aria-label="Review actions">
+      <div className="action-bar-nav">
+        <button
+          aria-label="Previous screen"
+          disabled={selectedIndex <= 0}
+          onClick={() => stepScreen(-1)}
+          title="Previous screen (←)"
+          type="button"
+        >
+          ‹ Prev
+        </button>
+        <span className="action-bar-place" aria-live="polite">
+          <strong>
+            {String(selected.ordinal).padStart(2, "0")} / {screens.length}
+          </strong>{" "}
+          {selected.title}
+        </span>
+        <button
+          aria-label="Next screen"
+          disabled={selectedIndex >= screens.length - 1}
+          onClick={() => stepScreen(1)}
+          title="Next screen (→)"
+          type="button"
+        >
+          Next ›
+        </button>
+      </div>
+      {addingFeedback && !draftPin ? (
+        <p className="action-bar-hint" role="status">
+          Click the screen to place a pin · Esc to cancel
+        </p>
+      ) : null}
+      <button
+        aria-keyshortcuts={isMac ? "Meta+F" : "Control+F"}
+        aria-pressed={addingFeedback}
+        className="feedback-add-button"
+        disabled={!ready}
+        onClick={startPin}
+        title={`Add feedback (${isMac ? "⌘F" : "Ctrl+F"})`}
+        type="button"
+      >
+        Add feedback <kbd aria-hidden="true">{isMac ? "⌘F" : "Ctrl F"}</kbd>
+      </button>
+    </footer>
+  );
+
   if (fullscreen) {
     return (
-      <FullscreenReview
-        feedback={feedback}
-        navigation={navigation}
-        onExit={() => setFullscreen(false)}
-      >
-        {canvas}
-      </FullscreenReview>
+      <>
+        <FullscreenReview
+          feedback={feedback}
+          navigation={navigation}
+          onExit={() => setFullscreen(false)}
+        >
+          {canvas}
+        </FullscreenReview>
+        {actionBar}
+      </>
     );
   }
 
@@ -363,8 +611,48 @@ export function App() {
           <span className="eyebrow">Design review</span>
           <h1>Screen Review Workbench</h1>
         </div>
-        <span className="status-pill">Local</span>
+        <div className="header-controls">
+          {projects && projects.length > 1 ? (
+            <label>
+              Project
+              <select
+                onChange={(event) => switchProject(event.target.value)}
+                value={project.id}
+              >
+                {projects.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <span className="header-project">{project.name}</span>
+          )}
+          {project.versions.length > 1 ? (
+            <label>
+              Version
+              <select
+                onChange={(event) => setVersionChoice(event.target.value)}
+                value={version}
+              >
+                {project.versions.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : (
+            <span className="status-pill">{version}</span>
+          )}
+        </div>
       </header>
+      {projectProblems.map((problem) => (
+        <p className="workbench-banner workbench-banner-error" key={problem} role="alert">
+          {problem}
+        </p>
+      ))}
       {loadState.kind === "loading" ? (
         <p className="workbench-banner" role="status">
           Loading feedback…
@@ -387,11 +675,17 @@ export function App() {
         className="workbench-grid"
         data-rail-mode={railMode}
         aria-label="Review workspace"
+        ref={gridRef}
       >
-        {navigation}
+        <div className="rail-column">{navigation}</div>
         {canvas}
-        {feedback}
+        <div className="feedback-column">
+          <div className="feedback-follow" ref={panelRef}>
+            {feedback}
+          </div>
+        </div>
       </section>
+      {actionBar}
     </main>
   );
 }

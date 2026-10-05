@@ -9,6 +9,7 @@ import {
   FeedbackNotFoundError,
   createFeedbackStorage,
 } from "../../src/server/storage";
+import { EXAMPLE_PROJECT } from "../../src/server/projects";
 
 const ROUTE = /^\/api\/projects\/([^/]+)\/feedback(?:\/(import)|\/([^/]+))?$/;
 
@@ -30,6 +31,10 @@ export async function installFakeFeedbackApi() {
   const fetchMock = vi.fn(async (url: string, init: RequestInit = {}) => {
     const method = init.method ?? "GET";
     const path = new URL(url, "http://127.0.0.1").pathname;
+    // The project list is not feedback traffic; keep it out of failNext/hold.
+    if (path === "/api/projects") {
+      return reply(200, { projects: [EXAMPLE_PROJECT], problems: [] });
+    }
     requests.push({ method, path });
     if (gate) await gate;
     if (failNext) {

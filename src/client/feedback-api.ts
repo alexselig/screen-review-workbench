@@ -4,6 +4,7 @@ import {
   type FeedbackRecord,
   type UpdateFeedbackInput,
 } from "../shared/feedback";
+import type { ProjectList } from "../shared/projects";
 
 export class FeedbackApiError extends Error {
   constructor(
@@ -127,4 +128,8 @@ export async function migrateLegacyFeedback(
   }
   window.localStorage.removeItem(key);
   return null;
+}
+
+export async function fetchProjects(): Promise<ProjectList> {
+  return request<ProjectList>("/api/projects");
 }

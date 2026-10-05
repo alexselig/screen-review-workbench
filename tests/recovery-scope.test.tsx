@@ -25,7 +25,6 @@ function inspector(selectedScreenId: string, onRecoverDraft = vi.fn()) {
       onCreate={vi.fn()}
       onRecoverDraft={onRecoverDraft}
       onSelectFeedback={vi.fn()}
-      onStartPin={vi.fn()}
       onUpdate={vi.fn()}
       projectId="demo"
       screens={screens}

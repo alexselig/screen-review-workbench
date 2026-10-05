@@ -7,6 +7,7 @@ import {
   isLoopbackHostHeader,
   loopbackOrigins,
 } from "./origin";
+import type { ProjectCatalog } from "./projects";
 import {
   FeedbackConflictError,
   FeedbackNotFoundError,
@@ -64,9 +65,12 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 const ROUTE =
   /^\/api\/projects\/([^/]+)\/feedback(?:\/(import)|\/([^/]+))?\/?$/;
 
+const CAPTURE_ROUTE = /^\/api\/projects\/([^/]+)\/captures\/([^/]+)\/([^/]+)\/?$/;
+
 export type ApiOptions = {
   storage: FeedbackStorage;
   port: number;
+  catalog?: ProjectCatalog;
 };
 
 // Returns false when the request is not an API route, so the caller can fall
@@ -74,7 +78,7 @@ export type ApiOptions = {
 export async function handleApi(
   request: IncomingMessage,
   response: ServerResponse,
-  { storage, port }: ApiOptions,
+  { storage, port, catalog }: ApiOptions,
 ): Promise<boolean> {
   const url = new URL(request.url ?? "/", "http://placeholder");
   if (!url.pathname.startsWith("/api/")) return false;
@@ -82,6 +86,27 @@ export async function handleApi(
   try {
     if (!isLoopbackHostHeader(request.headers.host, port)) {
       throw new HttpError(403, "Unexpected Host header.");
+    }
+    if (url.pathname === "/api/projects" && catalog) {
+      if (request.method !== "GET") throw new HttpError(405, "Method not allowed.");
+      sendJson(response, 200, await catalog.list());
+      return true;
+    }
+    const capture = CAPTURE_ROUTE.exec(url.pathname);
+    if (capture && catalog) {
+      if (request.method !== "GET") throw new HttpError(405, "Method not allowed.");
+      const [projectId, version, screenId] = capture
+        .slice(1)
+        .map((part) => decodeURIComponent(part!));
+      const file = await catalog.capture(projectId!, version!, screenId!);
+      if (!file) throw new HttpError(404, "Capture not found.");
+      response.writeHead(200, {
+        "cache-control": "private, max-age=300",
+        "content-type": file.type,
+        "x-content-type-options": "nosniff",
+      });
+      file.open().pipe(response);
+      return true;
     }
     const match = ROUTE.exec(url.pathname);
     if (!match) throw new HttpError(404, "Not found.");

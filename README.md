@@ -29,6 +29,22 @@ The server binds to `http://127.0.0.1:4173`.
   and scope stated in the file).
 - Responsive layout: at 900px and below, screens become a numbered strip and
   the feedback panel stacks under the canvas.
+- Real captures: registered projects are read from
+  `~/.screen-review-workbench/projects/*.json` (override with
+  `SCREEN_REVIEW_PROJECTS`) and each screen's capture is shown at full width.
+  Tall captures make the page longer; the page is the scroll area, the screen
+  list keeps its place, and the feedback panel follows along.
+- A fixed action bar keeps Prev/Next, the current screen, and **Add feedback**
+  in reach at the bottom of the window. The address bar records the project,
+  version, and screen, so a reload or shared link opens the same place.
+
+### Keyboard
+
+| Keys | Action |
+|---|---|
+| ⌘F / Ctrl+F | Add feedback (replaces the browser's find in this app) |
+| ← / → or [ / ] | Previous / next screen (ignored while typing) |
+| Esc | Cancel placing a pin |
 - Atomic file storage with serialized mutations, conflict checks, and restart
   recovery.
 
@@ -49,6 +65,8 @@ server prints the folder it is using on startup.
 | `POST /api/projects/:projectId/feedback` | Create (idempotent on `clientMutationId`) |
 | `PATCH /api/projects/:projectId/feedback/:id` | Update; `409` with the current record if `expectedUpdatedAt` is stale |
 | `DELETE /api/projects/:projectId/feedback/:id` | Delete the expected revision |
+| `GET /api/projects` | Registered projects and screens (no local paths or proxy settings) |
+| `GET /api/projects/:projectId/captures/:version/:screenId` | A screen's capture image, only from inside that version's `captureRoot` |
 | `POST /api/projects/:projectId/feedback/import` | Merge records saved elsewhere, keeping ids |
 
 Every mutation must carry a loopback `Origin` header and a JSON body (1 MB

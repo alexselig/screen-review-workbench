@@ -93,7 +93,6 @@ function renderInspector({
         }}
         onRecoverDraft={onRecoverDraft}
         onSelectFeedback={setSelectedId}
-        onStartPin={vi.fn()}
         onUpdate={async (id, input) => {
           const updated = await onUpdate(id, input);
           setRecords((current) =>
@@ -218,7 +217,6 @@ describe("FeedbackInspector", () => {
           onCreate={vi.fn()}
           onRecoverDraft={vi.fn()}
           onSelectFeedback={vi.fn()}
-          onStartPin={vi.fn()}
           onUpdate={vi.fn()}
           projectId="demo"
           screens={reviewScreens}
@@ -283,7 +281,6 @@ describe("FeedbackInspector", () => {
         onExport={onExport}
         onRecoverDraft={vi.fn()}
         onSelectFeedback={vi.fn()}
-        onStartPin={vi.fn()}
         onUpdate={vi.fn()}
         projectId="demo"
         screens={reviewScreens}

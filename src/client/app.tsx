@@ -310,15 +310,6 @@ export function App() {
     return () => window.removeEventListener("keydown", cancel);
   }, [addingFeedback, draftPin]);
 
-  useEffect(() => {
-    if (!draftPin) return;
-    document
-      .querySelector<HTMLTextAreaElement>(
-        'textarea[aria-label="Feedback note"]',
-      )
-      ?.focus();
-  }, [draftPin]);
-
   const upsertRecord = useCallback((record: FeedbackRecord) => {
     setFeedbackRecords((current) =>
       current.some((item) => item.id === record.id)

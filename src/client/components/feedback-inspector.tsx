@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -71,6 +72,8 @@ function sameTags(left: readonly string[], right: readonly string[]) {
 }
 
 const RECOVERY_PREFIX = "screen-review-workbench.feedback-recovery.v1:";
+const COLLAPSED_STATUSES_KEY =
+  "screen-review-workbench:collapsed-feedback-statuses";
 const NOTE_SAVE_DELAY_MS = 500;
 
 function recoveryStorageKey(projectId: string) {
@@ -83,6 +86,28 @@ function createRecoveryKey(version: string, screenId: string) {
 
 function updateRecoveryKey(id: string) {
   return `update:${id}`;
+}
+
+function readCollapsedStatuses(): FeedbackStatus[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed: unknown = JSON.parse(
+      window.localStorage.getItem(COLLAPSED_STATUSES_KEY) ?? "[]",
+    );
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((status): status is FeedbackStatus =>
+      (FEEDBACK_STATUSES as readonly unknown[]).includes(status),
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeCollapsedStatuses(statuses: readonly FeedbackStatus[]) {
+  window.localStorage.setItem(
+    COLLAPSED_STATUSES_KEY,
+    JSON.stringify(statuses),
+  );
 }
 
 function readRecoveryEntries(projectId: string): RecoveryEntries {
@@ -204,16 +229,18 @@ export function FeedbackInspector({
   const recoveryScopeRef = useRef(`${version}:${selectedScreenId}`);
   const [editor, setEditor] = useState<EditorState>(() => {
     const selected = feedback.find((item) => item.id === selectedFeedbackId);
-    const recovery = selected
+    const recovery = draftPin
+      ? initialCreateRecovery
+      : selected
       ? initialRecoveries[updateRecoveryKey(selected.id)]
       : initialCreateRecovery;
     return recovery
       ? {
           note: recovery.note,
           tags: recovery.tags,
-          status: selected?.status ?? "OPEN",
+          status: draftPin ? "OPEN" : (selected?.status ?? "OPEN"),
         }
-      : selected
+      : selected && !draftPin
         ? {
             note: selected.note,
             tags: selected.tags,
@@ -227,6 +254,9 @@ export function FeedbackInspector({
     null,
   );
   const [deleteMessage, setDeleteMessage] = useState("");
+  const [collapsedStatuses, setCollapsedStatuses] = useState<
+    FeedbackStatus[]
+  >(readCollapsedStatuses);
   // Where the open editor sits in the list. It is captured when editing
   // starts and held until the card closes, so retagging, changing status,
   // or a new pin's first save never moves (and remounts) the note box.
@@ -236,6 +266,9 @@ export function FeedbackInspector({
     priority: string | null;
   } | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editorSectionRef = useRef<HTMLElement>(null);
+  const previousDraftPinRef = useRef<Pin | null>(null);
+  const pendingDraftFocusRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const revisionRef = useRef(0);
   const latestRecordRef = useRef<FeedbackRecord | null>(null);
@@ -265,7 +298,7 @@ export function FeedbackInspector({
   const visibleSelectedRecord =
     visibleFeedback.find((item) => item.id === selectedFeedbackId) ?? null;
 
-  latestRecordRef.current = selectedRecord;
+  latestRecordRef.current = effectiveDraftPin ? null : selectedRecord;
   editorRef.current = editor;
 
   useEffect(() => {
@@ -297,6 +330,37 @@ export function FeedbackInspector({
   }, [onRecoverDraft, recoveredPin]);
 
   useEffect(() => {
+    if (selectedRecord) openStatus(selectedRecord.status);
+  }, [selectedRecord?.id, selectedRecord?.status]);
+
+  useLayoutEffect(() => {
+    const previousDraftPin = previousDraftPinRef.current;
+    previousDraftPinRef.current = draftPin;
+    if (!draftPin || previousDraftPin === draftPin) return;
+
+    const recovery =
+      readRecoveryEntries(projectId)[
+        createRecoveryKey(version, selectedScreenId)
+      ];
+    if (!recovery) setEditor({ ...EMPTY_EDITOR });
+    pendingDraftFocusRef.current = true;
+    openStatus("OPEN");
+  }, [draftPin, projectId, selectedScreenId, version]);
+
+  useLayoutEffect(() => {
+    if (
+      !effectiveDraftPin ||
+      collapsedStatuses.includes("OPEN") ||
+      !pendingDraftFocusRef.current
+    ) {
+      return;
+    }
+    pendingDraftFocusRef.current = false;
+    editorSectionRef.current?.scrollIntoView?.({ block: "nearest" });
+    textareaRef.current?.focus();
+  }, [collapsedStatuses, effectiveDraftPin]);
+
+  useEffect(() => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
@@ -305,15 +369,19 @@ export function FeedbackInspector({
   useEffect(() => {
     if (textareaRef.current === document.activeElement) return;
     const recoveries = readRecoveryEntries(projectId);
-    const recovery = selectedRecord
-      ? recoveries[updateRecoveryKey(selectedRecord.id)]
-      : recoveries[createRecoveryKey(version, selectedScreenId)];
+    const recovery = effectiveDraftPin
+      ? recoveries[createRecoveryKey(version, selectedScreenId)]
+      : selectedRecord
+        ? recoveries[updateRecoveryKey(selectedRecord.id)]
+        : undefined;
     if (recovery) {
       setEditor({
         note: recovery.note,
         tags: recovery.tags,
-        status: selectedRecord?.status ?? "OPEN",
+        status: effectiveDraftPin ? "OPEN" : (selectedRecord?.status ?? "OPEN"),
       });
+    } else if (effectiveDraftPin) {
+      setEditor({ ...EMPTY_EDITOR });
     } else if (selectedRecord) {
       setEditor({
         note: selectedRecord.note,
@@ -326,9 +394,25 @@ export function FeedbackInspector({
   }, [effectiveDraftPin, projectId, selectedRecord, selectedScreenId, version]);
 
   function currentRecoveryKey() {
-    return selectedRecord
+    return selectedRecord && !effectiveDraftPin
       ? updateRecoveryKey(selectedRecord.id)
       : createRecoveryKey(version, selectedScreenId);
+  }
+
+  function setStatusCollapsed(status: FeedbackStatus, collapsed: boolean) {
+    setCollapsedStatuses((current) => {
+      const next = collapsed
+        ? current.includes(status)
+          ? current
+          : [...current, status]
+        : current.filter((item) => item !== status);
+      writeCollapsedStatuses(next);
+      return next;
+    });
+  }
+
+  function openStatus(status: FeedbackStatus) {
+    setStatusCollapsed(status, false);
   }
 
   function persistLocal(nextEditor: EditorState) {
@@ -702,7 +786,6 @@ export function FeedbackInspector({
     );
   }
 
-  const showEditor = Boolean(effectiveDraftPin || visibleSelectedRecord);
   // The comment being edited renders as the editor in its own list slot, so it
   // never appears twice (once as a saved card and again in the editor).
   const editingRecord = effectiveDraftPin ? null : visibleSelectedRecord;
@@ -735,7 +818,11 @@ export function FeedbackInspector({
       ? editorSlot
       : { status: item.status, priority: priorityTag(item.tags) };
   const editorSection = (
-    <section className="feedback-editor" aria-label="Feedback editor">
+    <section
+      className="feedback-editor"
+      aria-label="Feedback editor"
+      ref={editorSectionRef}
+    >
       <header className="feedback-editor-header">
         {editingRecord ? (
           <span
@@ -817,7 +904,7 @@ export function FeedbackInspector({
           />
         </div>
       </fieldset>
-      {visibleSelectedRecord ? (
+      {editingRecord ? (
         <label>
           Status
           <select
@@ -861,14 +948,16 @@ export function FeedbackInspector({
 
   return (
     <aside className="feedback-panel" aria-label="Feedback inspector">
-      <header className="feedback-inspector-header">
-        <div>
-          <span className="eyebrow">Feedback</span>
-          <strong>
-            {visibleFeedback.length} comment
-            {visibleFeedback.length === 1 ? "" : "s"}
-          </strong>
-        </div>
+      <header
+        aria-label="Feedback summary"
+        className="feedback-inspector-header"
+        role="banner"
+      >
+        <strong>Feedback</strong>
+        <span className="feedback-inspector-count">
+          {visibleFeedback.length} comment
+          {visibleFeedback.length === 1 ? "" : "s"}
+        </span>
       </header>
 
       {visibleFeedback.length === 0 ? (
@@ -895,15 +984,26 @@ export function FeedbackInspector({
         // Comments without a priority tag sit after the P groups, unheaded.
         const untagged = items.filter((item) => !slotOf(item).priority);
         const pinsHidden = hiddenPinStatuses.includes(section.status);
+        const collapsed = collapsedStatuses.includes(section.status);
+        const bodyId = `feedback-section-${section.status.toLowerCase()}`;
         return (
           <section
             aria-label={section.label}
             className={`feedback-section status-${section.status.toLowerCase()}`}
             key={section.status}
           >
-            <h3 className="feedback-section-title">
-              {section.label}
-              <span className="feedback-count">{items.length}</span>
+            <div className="feedback-section-title">
+              <button
+                aria-controls={bodyId}
+                aria-expanded={!collapsed}
+                aria-label={`${collapsed ? "Expand" : "Collapse"} ${section.label} comments`}
+                className="feedback-section-toggle"
+                onClick={() => setStatusCollapsed(section.status, !collapsed)}
+                type="button"
+              >
+                <span>{section.label}</span>
+                <span className="feedback-count">{items.length}</span>
+              </button>
               {onTogglePinStatus ? (
                 <button
                   aria-label={`${pinsHidden ? "Show" : "Hide"} ${section.label} pins`}
@@ -915,42 +1015,46 @@ export function FeedbackInspector({
                   {pinsHidden ? "Show pins" : "Hide pins"}
                 </button>
               ) : null}
-            </h3>
-            {PRIORITY_TAGS.map((priority) => {
-              const group = items.filter(
-                (item) => slotOf(item).priority === priority,
-              );
-              const withDraft = draftHere?.priority === priority;
-              if (group.length === 0 && !withDraft) return null;
-              return (
-                <div
-                  aria-label={`${section.label} ${priority}`}
-                  className="feedback-group"
-                  key={priority}
-                  role="group"
-                >
-                  <h4
-                    className={`feedback-group-title tag-${priority.toLowerCase()}`}
-                  >
-                    {priority}
-                    <span className="feedback-count">{group.length}</span>
-                  </h4>
-                  <ol className="feedback-list">
+            </div>
+            {!collapsed ? (
+              <div className="feedback-section-body" id={bodyId}>
+                {PRIORITY_TAGS.map((priority) => {
+                  const group = items.filter(
+                    (item) => slotOf(item).priority === priority,
+                  );
+                  const withDraft = draftHere?.priority === priority;
+                  if (group.length === 0 && !withDraft) return null;
+                  return (
+                    <div
+                      aria-label={`${section.label} ${priority}`}
+                      className="feedback-group"
+                      key={priority}
+                      role="group"
+                    >
+                      <h4
+                        className={`feedback-group-title tag-${priority.toLowerCase()}`}
+                      >
+                        {priority}
+                        <span className="feedback-count">{group.length}</span>
+                      </h4>
+                      <ol className="feedback-list">
+                        {[
+                          ...group.map(renderItem),
+                          ...(withDraft ? [draftRow] : []),
+                        ]}
+                      </ol>
+                    </div>
+                  );
+                })}
+                {untagged.length || (draftHere && !draftHere.priority) ? (
+                  <ol className="feedback-list feedback-list-untagged">
                     {[
-                      ...group.map(renderItem),
-                      ...(withDraft ? [draftRow] : []),
+                      ...untagged.map(renderItem),
+                      ...(draftHere && !draftHere.priority ? [draftRow] : []),
                     ]}
                   </ol>
-                </div>
-              );
-            })}
-            {untagged.length || (draftHere && !draftHere.priority) ? (
-              <ol className="feedback-list feedback-list-untagged">
-                {[
-                  ...untagged.map(renderItem),
-                  ...(draftHere && !draftHere.priority ? [draftRow] : []),
-                ]}
-              </ol>
+                ) : null}
+              </div>
             ) : null}
           </section>
         );

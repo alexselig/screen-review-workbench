@@ -311,6 +311,105 @@ describe("FeedbackInspector", () => {
     expect(urgent).toHaveTextContent("Hover");
   });
 
+  it("collapses status sections independently from pin visibility and remembers them", () => {
+    const onTogglePinStatus = vi.fn();
+    const first = render(
+      <FeedbackInspector
+        draftPin={null}
+        feedback={[feedback()]}
+        hiddenPinStatuses={[]}
+        onCancelDraft={vi.fn()}
+        onCreate={vi.fn()}
+        onRecoverDraft={vi.fn()}
+        onSelectFeedback={vi.fn()}
+        onTogglePinStatus={onTogglePinStatus}
+        onUpdate={vi.fn()}
+        projectId="demo"
+        screens={reviewScreens}
+        selectedFeedbackId={null}
+        selectedScreenId="landing"
+        version="live"
+      />,
+    );
+
+    const toggle = screen.getByRole("button", {
+      name: "Collapse Backlog comments",
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Clarify the primary action.")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Hide Backlog pins" }));
+    expect(onTogglePinStatus).toHaveBeenCalledWith("OPEN");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    first.unmount();
+    render(
+      <FeedbackInspector
+        draftPin={null}
+        feedback={[feedback()]}
+        onCancelDraft={vi.fn()}
+        onCreate={vi.fn()}
+        onRecoverDraft={vi.fn()}
+        onSelectFeedback={vi.fn()}
+        onUpdate={vi.fn()}
+        projectId="demo"
+        screens={reviewScreens}
+        selectedFeedbackId={null}
+        selectedScreenId="landing"
+        version="live"
+      />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Expand Backlog comments" }),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("puts a new draft in an open Backlog section and scrolls the editor into view", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    localStorage.setItem(
+      "screen-review-workbench:collapsed-feedback-statuses",
+      JSON.stringify(["OPEN"]),
+    );
+
+    renderInspector({
+      draftPin: { x: 0.4, y: 0.6 },
+      initialFeedback: [
+        feedback({ status: "IN_PROGRESS", tags: ["P0"], note: "Old edit" }),
+      ],
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Collapse Backlog comments" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("textbox", { name: "Feedback note" })).toHaveValue(
+      "",
+    );
+    expect(screen.getByRole("button", { name: "P1" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("textbox", { name: "Feedback note" })).toHaveFocus();
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
+  });
+
+  it("shows the comment count to the right of the Feedback title", () => {
+    renderInspector({
+      initialFeedback: [
+        feedback(),
+        feedback({ id: "feedback-2", note: "Second" }),
+      ],
+    });
+
+    const header = screen.getByRole("banner", { name: "Feedback summary" });
+    expect(within(header).getByText("Feedback")).toBeInTheDocument();
+    expect(within(header).getByText("2 comments")).toHaveClass(
+      "feedback-inspector-count",
+    );
+  });
+
   it("sets one priority tag at a time and adds free-text tags", async () => {
     vi.useFakeTimers();
     const onUpdate = vi.fn(async (id: string, input: UpdateFeedbackInput) =>

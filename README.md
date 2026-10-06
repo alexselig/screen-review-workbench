@@ -40,7 +40,9 @@ The server binds to `http://127.0.0.1:4173`.
   Fixed pins are hidden by default and the choice is remembered per browser.
 - **Approve screen** is pinned to the foot of the feedback panel. One click
   approves the screen (teal, "Screen approved"); click again to unapprove.
-  Approvals are saved per version and screen in `approvals.json`.
+  Approvals are saved per version and screen in `approvals.json`. Approved
+  screens carry a teal check on their number in the screen index, expanded,
+  collapsed and fullscreen.
 - Older feedback files are migrated on read: priority Blocking/Important/Polish
   becomes P0/P1/P2 and the category becomes a tag.
 - Responsive layout: at 900px and below, screens become a numbered strip and

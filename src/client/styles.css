@@ -625,9 +625,36 @@ h1 {
 }
 
 .screen-number {
+  position: relative;
+  justify-self: center;
   font-family: var(--font-display);
   font-size: 16px;
   text-align: center;
+}
+
+/* Approved screens: a teal check badge on the number, visible collapsed or
+   expanded. The paper ring keeps it legible on the blue current row. */
+.screen-approved-mark {
+  position: absolute;
+  top: -5px;
+  right: -8px;
+  width: 12px;
+  height: 12px;
+  overflow: visible;
+}
+
+.screen-approved-mark circle {
+  fill: var(--fixed-teal);
+  stroke: var(--surface);
+  stroke-width: 1.5px;
+}
+
+.screen-approved-mark path {
+  fill: none;
+  stroke: var(--on-teal);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6px;
 }
 
 .screen-name {

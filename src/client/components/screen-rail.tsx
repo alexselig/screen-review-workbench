@@ -8,6 +8,7 @@ export function ScreenRail({
   screens,
   selectedId,
   openCounts,
+  approvedIds,
   mode,
   onModeChange,
   onSelect,
@@ -15,6 +16,7 @@ export function ScreenRail({
   screens: ReviewScreen[];
   selectedId: string;
   openCounts?: ReadonlyMap<string, number>;
+  approvedIds?: ReadonlySet<string>;
   mode: RailMode;
   // Omitted where the container controls collapse (the fullscreen drawer).
   onModeChange?: (mode: RailMode) => void;
@@ -116,6 +118,7 @@ export function ScreenRail({
           const showGroup = screen.group !== previousGroup;
           if (showGroup) groupIndex += 1;
           previousGroup = screen.group;
+          const approved = approvedIds?.has(screen.id) ?? false;
           return (
             <li key={screen.id}>
               {showGroup ? (
@@ -125,13 +128,24 @@ export function ScreenRail({
               ) : null}
               <button
                 aria-current={screen.id === selectedId ? "page" : undefined}
-                aria-label={`${String(screen.ordinal).padStart(2, "0")}. ${screen.title}`}
+                aria-label={`${String(screen.ordinal).padStart(2, "0")}. ${screen.title}${approved ? " (approved)" : ""}`}
                 onClick={() => onSelect(screen.id)}
-                title={screen.title}
+                title={approved ? `${screen.title} · Approved` : screen.title}
                 type="button"
               >
                 <span className="screen-number">
                   {String(screen.ordinal).padStart(2, "0")}
+                  {approved ? (
+                    <svg
+                      aria-hidden="true"
+                      className="screen-approved-mark"
+                      data-testid="screen-approved-mark"
+                      viewBox="0 0 12 12"
+                    >
+                      <circle cx="6" cy="6" r="6" />
+                      <path d="M3.2 6.2 5.2 8.1 8.9 4.2" />
+                    </svg>
+                  ) : null}
                 </span>
                 <span className="screen-name">{screen.title}</span>
                 {openCounts?.get(screen.id) ? (

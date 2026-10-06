@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -43,6 +44,10 @@ describe("approve screen toggle", () => {
     await waitFor(async () =>
       expect(await api.storage.listApprovals("example")).toHaveLength(1),
     );
+    const nav = screen.getByRole("navigation");
+    const railItem = within(nav).getByRole("button", { name: /\(approved\)$/ });
+    expect(railItem).toHaveAttribute("aria-current", "page");
+    expect(within(nav).getAllByTestId("screen-approved-mark")).toHaveLength(1);
 
     first.unmount();
     render(<App />);
@@ -53,6 +58,7 @@ describe("approve screen toggle", () => {
 
     fireEvent.click(reloaded);
     expect(reloaded).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("screen-approved-mark")).toBeNull();
     await waitFor(async () =>
       expect(await api.storage.listApprovals("example")).toEqual([]),
     );

@@ -417,6 +417,15 @@ export function App() {
     });
   }, []);
 
+  const approvedIds = useMemo(
+    () =>
+      new Set(
+        (approvals ?? [])
+          .filter((approval) => approval.version === version)
+          .map((approval) => approval.screenId),
+      ),
+    [approvals, version],
+  );
   const screenApproved = approvals
     ? isApproved(approvals, version, selectedId)
     : false;
@@ -537,6 +546,7 @@ export function App() {
     <ScreenRail
       mode={fullscreen ? "compact" : railMode}
       onModeChange={fullscreen ? undefined : setRailMode}
+      approvedIds={approvedIds}
       onSelect={selectScreen}
       openCounts={openCounts}
       screens={screens}

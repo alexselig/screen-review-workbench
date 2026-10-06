@@ -119,6 +119,7 @@ export function ScreenRail({
           if (showGroup) groupIndex += 1;
           previousGroup = screen.group;
           const approved = approvedIds?.has(screen.id) ?? false;
+          const openCount = openCounts?.get(screen.id) ?? 0;
           return (
             <li key={screen.id}>
               {showGroup ? (
@@ -128,9 +129,15 @@ export function ScreenRail({
               ) : null}
               <button
                 aria-current={screen.id === selectedId ? "page" : undefined}
-                aria-label={`${String(screen.ordinal).padStart(2, "0")}. ${screen.title}${approved ? " (approved)" : ""}`}
+                aria-label={`${String(screen.ordinal).padStart(2, "0")}. ${screen.title}${approved ? " (approved)" : ""}${openCount ? `, ${openCount} open` : ""}`}
                 onClick={() => onSelect(screen.id)}
-                title={approved ? `${screen.title} · Approved` : screen.title}
+                title={[
+                  screen.title,
+                  approved ? "Approved" : "",
+                  openCount ? `${openCount} open` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
                 type="button"
               >
                 <span className="screen-number">
@@ -146,22 +153,17 @@ export function ScreenRail({
                       <path d="M3.2 6.2 5.2 8.1 8.9 4.2" />
                     </svg>
                   ) : null}
+                  {openCount ? (
+                    <span
+                      aria-hidden="true"
+                      className="screen-open-count"
+                      data-testid="screen-open-count"
+                    >
+                      {openCount}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="screen-name">{screen.title}</span>
-                {openCounts?.get(screen.id) ? (
-                  <span
-                    aria-label={`${openCounts.get(screen.id)} open`}
-                    className="feedback-marker has-open"
-                    title={`${openCounts.get(screen.id)} open`}
-                  >
-                    {openCounts.get(screen.id)}
-                  </span>
-                ) : (
-                  <span
-                    aria-label="No open feedback"
-                    className="feedback-marker"
-                  />
-                )}
               </button>
             </li>
           );

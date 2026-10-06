@@ -9,6 +9,8 @@ const reviewScreenSchema = z.object({
   id: z.string().min(1),
   ordinal: z.number().int().positive(),
   title: z.string().min(1),
+  // What the capture shows, e.g. "Step 3 of 5, manual path selected".
+  description: z.string().trim().min(1).max(500).optional(),
   group: z.string().min(1),
   liveUrl: z.string().url().optional(),
   capturePath: z.string().min(1).optional(),

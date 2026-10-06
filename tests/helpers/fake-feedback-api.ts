@@ -64,6 +64,26 @@ export async function installFakeFeedbackApi() {
         return reply(500, { error: (error as Error).message });
       }
     }
+    const captionsMatch = /^\/api\/projects\/([^/]+)\/captions\/?$/.exec(path);
+    if (captionsMatch) {
+      const projectId = decodeURIComponent(captionsMatch[1]!);
+      try {
+        if (method === "GET") {
+          return reply(200, {
+            captions: await storage.listCaptions(projectId),
+          });
+        }
+        if (method === "PUT") {
+          const input = JSON.parse(String(init.body));
+          return reply(200, {
+            captions: await storage.setCaption(projectId, input),
+          });
+        }
+        return reply(405, { error: "Method not allowed." });
+      } catch (error) {
+        return reply(500, { error: (error as Error).message });
+      }
+    }
     const match = ROUTE.exec(path);
     if (!match) return reply(404, { error: "Not found." });
     const projectId = decodeURIComponent(match[1]!);

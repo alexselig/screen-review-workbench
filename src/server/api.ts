@@ -70,6 +70,8 @@ const CAPTURE_ROUTE =
 
 const APPROVALS_ROUTE = /^\/api\/projects\/([^/]+)\/approvals\/?$/;
 
+const CAPTIONS_ROUTE = /^\/api\/projects\/([^/]+)\/captions\/?$/;
+
 export type ApiOptions = {
   storage: FeedbackStorage;
   port: number;
@@ -128,6 +130,30 @@ export async function handleApi(
         }
         sendJson(response, 200, {
           approvals: await storage.setApproval(
+            projectId,
+            (await readJsonBody(request)) as never,
+          ),
+        });
+      } else {
+        throw new HttpError(405, "Method not allowed.");
+      }
+      return true;
+    }
+    const captions = CAPTIONS_ROUTE.exec(url.pathname);
+    if (captions) {
+      const projectId = decodeURIComponent(captions[1]!);
+      if (request.method === "GET") {
+        sendJson(response, 200, {
+          captions: await storage.listCaptions(projectId),
+        });
+      } else if (request.method === "PUT") {
+        try {
+          assertMutationOrigin(request.headers.origin, loopbackOrigins(port));
+        } catch (error) {
+          throw new HttpError(403, (error as Error).message);
+        }
+        sendJson(response, 200, {
+          captions: await storage.setCaption(
             projectId,
             (await readJsonBody(request)) as never,
           ),

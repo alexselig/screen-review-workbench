@@ -731,6 +731,94 @@ h1 {
   font-weight: 700;
 }
 
+/* "Showing" strip: one line above the capture naming the step, path or state
+   it shows. Ruled like a caption plate, not a card. */
+.screen-caption {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 16px;
+  max-width: var(--screen-width, 1440px);
+  margin: 0 auto 12px;
+  padding: 0 0 0 14px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-alt);
+}
+
+.screen-caption-label {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.screen-caption-text {
+  min-height: 44px;
+  padding: 10px 14px 10px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: text;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.screen-caption-text:hover:not(:disabled) {
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 4px;
+}
+
+.screen-caption-text:focus-visible {
+  outline: 2px solid var(--bauhaus-blue);
+  outline-offset: -2px;
+}
+
+.screen-caption[data-empty="true"] {
+  border-style: dashed;
+  background: var(--surface);
+}
+
+.screen-caption[data-empty="true"] .screen-caption-text {
+  color: var(--ink-muted);
+  font-weight: 500;
+}
+
+.screen-caption[data-editing="true"] {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  border-color: var(--bauhaus-blue);
+  background: var(--surface);
+}
+
+.screen-caption textarea {
+  min-height: 44px;
+  padding: 10px 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  field-sizing: content;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.4;
+  resize: none;
+}
+
+.screen-caption textarea:focus {
+  outline: none;
+}
+
+.screen-caption-hint {
+  padding-right: 14px;
+  color: var(--ink-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 /* The frame keeps the screen's aspect ratio at the canvas width; tall
    captures make the page longer rather than shrinking to fit. */
 .screen-frame {
@@ -1544,6 +1632,10 @@ button.tag-chip:hover {
 
 /* Tablet and phone: stack screens, canvas, then feedback so review still works. */
 @media (max-width: 900px) {
+  .screen-caption-hint {
+    display: none;
+  }
+
   .workbench-grid,
   .workbench-grid[data-rail-mode] {
     grid-template-columns: minmax(0, 1fr);

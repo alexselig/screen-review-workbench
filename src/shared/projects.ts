@@ -4,7 +4,7 @@ import type { ReviewScreen } from "./manifest";
 // settings, or injected headers.
 export type PublicScreen = Pick<
   ReviewScreen,
-  "id" | "ordinal" | "title" | "group" | "viewport" | "liveUrl"
+  "id" | "ordinal" | "title" | "description" | "group" | "viewport" | "liveUrl"
 > & { hasCapture: boolean };
 
 export type PublicProject = {

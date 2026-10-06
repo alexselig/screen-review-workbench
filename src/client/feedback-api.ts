@@ -8,6 +8,7 @@ import {
   screenApprovalSchema,
   type SetApprovalInput,
 } from "../shared/approvals";
+import { screenCaptionSchema, type SetCaptionInput } from "../shared/captions";
 import type { ProjectList } from "../shared/projects";
 
 export class FeedbackApiError extends Error {
@@ -115,6 +116,25 @@ export async function putApproval(projectId: string, input: SetApprovalInput) {
     { method: "PUT", body: input },
   );
   return screenApprovalSchema.array().parse(approvals);
+}
+
+function captionsUrl(projectId: string) {
+  return `/api/projects/${encodeURIComponent(projectId)}/captions`;
+}
+
+export async function fetchCaptions(projectId: string) {
+  const { captions } = await request<{ captions: unknown }>(
+    captionsUrl(projectId),
+  );
+  return screenCaptionSchema.array().parse(captions);
+}
+
+export async function putCaption(projectId: string, input: SetCaptionInput) {
+  const { captions } = await request<{ captions: unknown }>(
+    captionsUrl(projectId),
+    { method: "PUT", body: input },
+  );
+  return screenCaptionSchema.array().parse(captions);
 }
 
 export function legacyFeedbackKey(projectId: string) {

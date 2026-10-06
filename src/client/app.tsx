@@ -15,8 +15,10 @@ import {
 } from "./components/feedback-inspector";
 import { ExportDialog } from "./components/export-dialog";
 import { FullscreenReview } from "./components/fullscreen-review";
+import { ScreenCaption } from "./components/screen-caption";
 import { ScreenRail, type RailMode } from "./components/screen-rail";
 import { isApproved, type ScreenApproval } from "../shared/approvals";
+import { captionFor, type ScreenCaption as Caption } from "../shared/captions";
 import { createPinNumbers } from "../shared/export";
 import {
   FEEDBACK_STATUSES,
@@ -35,12 +37,14 @@ import {
 import {
   FeedbackApiError,
   fetchApprovals,
+  fetchCaptions,
   fetchFeedback,
   fetchProjects,
   migrateLegacyFeedback,
   patchFeedback,
   postFeedback,
   putApproval,
+  putCaption,
   removeFeedback,
 } from "./feedback-api";
 
@@ -176,6 +180,8 @@ export function App() {
   // null until loaded; the approve toggle stays disabled until then.
   const [approvals, setApprovals] = useState<ScreenApproval[] | null>(null);
   const approvalRequest = useRef(0);
+  const [captions, setCaptions] = useState<Caption[] | null>(null);
+  const captionRequest = useRef(0);
   const [hiddenPinStatuses, setHiddenPinStatuses] = useState<FeedbackStatus[]>(
     readHiddenPinStatuses,
   );
@@ -291,6 +297,28 @@ export function App() {
         if (cancelled) return;
         setNotice(
           `Screen approvals could not load: ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [loadAttempt, projects, project.id]);
+
+  useEffect(() => {
+    if (!projects) return;
+    let cancelled = false;
+    setCaptions(null);
+    fetchCaptions(project.id).then(
+      (list) => {
+        if (!cancelled) setCaptions(list);
+      },
+      (error: unknown) => {
+        if (cancelled) return;
+        setNotice(
+          `Screen descriptions could not load: ${
             error instanceof Error ? error.message : "unknown error"
           }`,
         );
@@ -429,6 +457,47 @@ export function App() {
   const screenApproved = approvals
     ? isApproved(approvals, version, selectedId)
     : false;
+
+  const saveCaption = useCallback(
+    async (text: string) => {
+      if (!captions) return;
+      const previous = captions;
+      const request = ++captionRequest.current;
+      const others = previous.filter(
+        (item) => item.version !== version || item.screenId !== selectedId,
+      );
+      setCaptions(
+        text
+          ? [
+              ...others,
+              {
+                version,
+                screenId: selectedId,
+                text,
+                updatedAt: new Date().toISOString(),
+              },
+            ]
+          : others,
+      );
+      try {
+        const saved = await putCaption(project.id, {
+          version,
+          screenId: selectedId,
+          text,
+        });
+        if (request === captionRequest.current) setCaptions(saved);
+      } catch (error) {
+        if (request !== captionRequest.current) return;
+        setCaptions(previous);
+        setNotice(
+          `Description was not saved: ${
+            error instanceof Error ? error.message : "unknown error"
+          }`,
+        );
+      }
+    },
+    [captions, project.id, selectedId, version],
+  );
 
   const toggleApproval = useCallback(async () => {
     if (!approvals) return;
@@ -592,6 +661,9 @@ export function App() {
       className="review-canvas"
       data-adding-feedback={addingFeedback}
       data-testid="canvas"
+      style={
+        { "--screen-width": `${selected.viewport.width}px` } as CSSProperties
+      }
     >
       <header className="canvas-header">
         <div>
@@ -609,6 +681,13 @@ export function App() {
           ) : null}
         </div>
       </header>
+      <ScreenCaption
+        disabled={!captions}
+        key={`${project.id}/${version}/${selectedId}`}
+        manifest={selected.description}
+        onSave={saveCaption}
+        saved={captions ? captionFor(captions, version, selectedId) : undefined}
+      />
       <div
         className="screen-frame"
         data-testid="screen-frame"

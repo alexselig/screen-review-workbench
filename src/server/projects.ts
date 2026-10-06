@@ -138,6 +138,9 @@ export function createProjectCatalog({
               id: screen.id,
               ordinal: screen.ordinal,
               title: screen.title,
+              ...(screen.description
+                ? { description: screen.description }
+                : {}),
               group: screen.group,
               viewport: screen.viewport,
               ...(screen.liveUrl ? { liveUrl: screen.liveUrl } : {}),

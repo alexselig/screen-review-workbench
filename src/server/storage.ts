@@ -23,6 +23,12 @@ import {
   type ScreenApproval,
   type SetApprovalInput,
 } from "../shared/approvals";
+import {
+  screenCaptionSchema,
+  setCaptionInputSchema,
+  type ScreenCaption,
+  type SetCaptionInput,
+} from "../shared/captions";
 
 const feedbackEnvelopeSchema = z.object({
   version: z.literal(1),
@@ -34,9 +40,18 @@ const approvalsEnvelopeSchema = z.object({
   approvals: z.array(screenApprovalSchema),
 });
 
+const captionsEnvelopeSchema = z.object({
+  version: z.literal(1),
+  captions: z.array(screenCaptionSchema),
+});
+
 // Approvals live in their own file, so they queue separately from feedback.
 function approvalsQueue(projectId: string) {
   return `${projectId}\0approvals`;
+}
+
+function captionsQueue(projectId: string) {
+  return `${projectId}\0captions`;
 }
 
 type StorageFileSystem = {
@@ -186,8 +201,13 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
     await syncAndClose(directoryHandle);
   }
 
-  async function readApprovals(projectId: string): Promise<ScreenApproval[]> {
-    const file = join(paths(projectId).directory, "approvals.json");
+  async function readEnvelope<T>(
+    projectId: string,
+    fileName: string,
+    schema: z.ZodType<T>,
+    label: string,
+  ): Promise<T | null> {
+    const file = join(paths(projectId).directory, fileName);
     let contents: string;
     try {
       contents = await fileSystem.readFile(file, "utf8");
@@ -198,7 +218,7 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
         "code" in error &&
         error.code === "ENOENT"
       ) {
-        return [];
+        return null;
       }
       throw error;
     }
@@ -208,13 +228,71 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
     } catch {
       throw new Error(`${file} contains invalid JSON; restore or repair it.`);
     }
-    const result = approvalsEnvelopeSchema.safeParse(parsed);
+    const result = schema.safeParse(parsed);
     if (!result.success) {
       throw new Error(
-        `${file} contains invalid approval data; restore or repair it.`,
+        `${file} contains invalid ${label} data; restore or repair it.`,
       );
     }
-    return result.data.approvals;
+    return result.data;
+  }
+
+  async function readApprovals(projectId: string): Promise<ScreenApproval[]> {
+    const envelope = await readEnvelope(
+      projectId,
+      "approvals.json",
+      approvalsEnvelopeSchema,
+      "approval",
+    );
+    return envelope?.approvals ?? [];
+  }
+
+  async function readCaptions(projectId: string): Promise<ScreenCaption[]> {
+    const envelope = await readEnvelope(
+      projectId,
+      "captions.json",
+      captionsEnvelopeSchema,
+      "caption",
+    );
+    return envelope?.captions ?? [];
+  }
+
+  async function listCaptions(projectId: string) {
+    await afterPendingMutation(captionsQueue(projectId));
+    return readCaptions(projectId);
+  }
+
+  function setCaption(
+    projectId: string,
+    rawInput: SetCaptionInput,
+  ): Promise<ScreenCaption[]> {
+    return serializeMutation(captionsQueue(projectId), async () => {
+      const input = setCaptionInputSchema.parse(rawInput);
+      const captions = await readCaptions(projectId);
+      const others = captions.filter(
+        (item) =>
+          item.version !== input.version || item.screenId !== input.screenId,
+      );
+      const current = captions.find((item) => !others.includes(item));
+      if ((current?.text ?? "") === input.text) return captions;
+      const next = input.text
+        ? [
+            ...others,
+            {
+              version: input.version,
+              screenId: input.screenId,
+              text: input.text,
+              updatedAt: now().toISOString(),
+            },
+          ]
+        : others;
+      await writeAtomically(
+        projectId,
+        "captions.json",
+        captionsEnvelopeSchema.parse({ version: 1, captions: next }),
+      );
+      return next;
+    });
   }
 
   async function listApprovals(projectId: string) {
@@ -411,6 +489,8 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
     importFeedback,
     listApprovals,
     setApproval,
+    listCaptions,
+    setCaption,
   };
 }
 

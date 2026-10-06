@@ -43,6 +43,11 @@ The server binds to `http://127.0.0.1:4173`.
   Approvals are saved per version and screen in `approvals.json`. Approved
   screens carry a teal check on their number in the screen index, expanded,
   collapsed and fullscreen.
+- A **Showing** strip above each capture says exactly what it shows (for
+  example "Step 3 of 5, manual path selected"). Click it to edit; Enter saves,
+  Esc cancels. Text is saved per version and screen in `captions.json`; a
+  screen's optional manifest `description` is the default, and clearing an
+  edit restores it.
 - Older feedback files are migrated on read: priority Blocking/Important/Polish
   becomes P0/P1/P2 and the category becomes a tag.
 - Responsive layout: at 900px and below, screens become a numbered strip and
@@ -90,6 +95,8 @@ server prints the folder it is using on startup.
 | `POST /api/projects/:projectId/feedback/import`            | Merge records saved elsewhere, keeping ids                              |
 | `GET /api/projects/:projectId/approvals`                   | Approved screens (stored beside `feedback.json` in `approvals.json`)    |
 | `PUT /api/projects/:projectId/approvals`                   | Set `{version, screenId, approved}`; returns the full list              |
+| `GET /api/projects/:projectId/captions`                    | Screen descriptions (stored beside `feedback.json` in `captions.json`)  |
+| `PUT /api/projects/:projectId/captions`                    | Set `{version, screenId, text}`; empty text clears; returns the list    |
 
 Every mutation must carry a loopback `Origin` header and a JSON body (1 MB
 max); requests with a non-loopback `Host` header are refused. If

@@ -124,3 +124,22 @@ The registration is written under
 `~/.screen-review-workbench/projects/ship-a-skill.json`. Supply the local E2E
 header at runtime through `SHIP_A_SKILL_E2E_SECRET`; the secret is never stored
 in Git.
+
+## Capturing long pages
+
+Playwright's `fullPage` screenshot grows the capture, not the viewport, so a
+footer or action bar with `position: fixed; bottom: 0` (or a stuck
+`position: sticky; bottom: 0`) is painted at the bottom of the _first screen_,
+in the middle of a long page. Capture scripts should use the helper instead:
+
+```ts
+import { captureFullPage } from "../screen-review-workbench/src/capture/full-page";
+
+await captureFullPage(page, { path: "capture.webp", type: "webp" });
+```
+
+It moves bottom-anchored bars (at most half the viewport tall) to the end of the
+document, takes the full-page shot, then restores their inline styles exactly.
+Headers, full-screen dialogs, and pages shorter than the viewport are left
+alone. Apps that scroll an inner container (a `100vh` body with its own
+scroller) are not covered; capture those by scrolling the container instead.

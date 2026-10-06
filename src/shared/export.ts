@@ -115,7 +115,12 @@ export function serializeMarkdown(input: FeedbackExportInput): string {
     const checked =
       item.status === "RESOLVED" || item.status === "WONT_FIX" ? "x" : " ";
     lines.push(
-      `- [${checked}] **Pin ${item.pinNumber}${item.tags.length ? ` · ${item.tags.join(", ")}` : ""} · ${STATUS_LABELS[item.status]}** (${percent(item.x)}, ${percent(item.y)}): ${escapeMarkdown(item.note)}`,
+      `- [${checked}] **Pin ${item.pinNumber}${item.tags.length ? ` · ${item.tags.join(", ")}` : ""} · ${STATUS_LABELS[item.status]}** (${percent(item.x)}, ${percent(item.y)}): ${escapeMarkdown(item.note)} \`id: ${item.id.replace(/`/g, "")}\``,
+      ...(item.reply
+        ? [
+            `  - Reply (${escapeMarkdown(item.reply.author)}): ${escapeMarkdown(item.reply.note)}`,
+          ]
+        : []),
     );
   }
 

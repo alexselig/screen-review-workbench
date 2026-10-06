@@ -62,7 +62,11 @@ function renderInspector({
     }),
   ),
   onUpdate = vi.fn(async (id: string, input: UpdateFeedbackInput) =>
-    feedback({ id, ...input.patch, updatedAt: "2026-10-05T20:00:01.000Z" }),
+    feedback({
+      id,
+      ...(input.patch as Partial<FeedbackRecord>),
+      updatedAt: "2026-10-05T20:00:01.000Z",
+    }),
   ),
   onRecoverDraft = vi.fn(),
 }: {
@@ -114,7 +118,11 @@ describe("FeedbackInspector", () => {
   it("debounces note saves for 500ms", async () => {
     vi.useFakeTimers();
     const onUpdate = vi.fn(async (id: string, input: UpdateFeedbackInput) =>
-      feedback({ id, ...input.patch, updatedAt: "2026-10-05T20:00:01.000Z" }),
+      feedback({
+        id,
+        ...(input.patch as Partial<FeedbackRecord>),
+        updatedAt: "2026-10-05T20:00:01.000Z",
+      }),
     );
     renderInspector({ onUpdate });
 
@@ -133,7 +141,11 @@ describe("FeedbackInspector", () => {
 
   it("flushes status immediately", async () => {
     const onUpdate = vi.fn(async (id: string, input: UpdateFeedbackInput) =>
-      feedback({ id, ...input.patch, updatedAt: "2026-10-05T20:00:01.000Z" }),
+      feedback({
+        id,
+        ...(input.patch as Partial<FeedbackRecord>),
+        updatedAt: "2026-10-05T20:00:01.000Z",
+      }),
     );
     renderInspector({ onUpdate });
 
@@ -391,7 +403,9 @@ describe("FeedbackInspector", () => {
       "aria-pressed",
       "true",
     );
-    expect(screen.getByRole("textbox", { name: "Feedback note" })).toHaveFocus();
+    expect(
+      screen.getByRole("textbox", { name: "Feedback note" }),
+    ).toHaveFocus();
     expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest" });
   });
 
@@ -413,7 +427,11 @@ describe("FeedbackInspector", () => {
   it("sets one priority tag at a time and adds free-text tags", async () => {
     vi.useFakeTimers();
     const onUpdate = vi.fn(async (id: string, input: UpdateFeedbackInput) =>
-      feedback({ id, ...input.patch, updatedAt: "2026-10-05T20:00:01.000Z" }),
+      feedback({
+        id,
+        ...(input.patch as Partial<FeedbackRecord>),
+        updatedAt: "2026-10-05T20:00:01.000Z",
+      }),
     );
     renderInspector({ onUpdate });
 

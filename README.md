@@ -29,6 +29,10 @@ The server binds to `http://127.0.0.1:4173`.
   default to P1), a status of Backlog, In progress, Fixed or Won't fix,
   autosaved notes and two-step delete. Fixed pins turn teal with a check badge
   so new feedback stands out from what has already been addressed.
+- **Replies close the loop.** Whoever fixes a comment (usually an agent) can
+  attach a reply saying what was done, or why not, and set its status in the
+  same call. The reply shows under the note on the card and in the editor,
+  survives later status changes, and appears in exports.
 - **Export** in the action bar opens a dialog: Markdown or JSON, all screens or
   this screen only, and which statuses to include. Exports are deterministic,
   state their scope, and keep on-screen pin numbers.
@@ -84,19 +88,19 @@ Feedback is written to disk by the server, never only to the browser:
 Set `SCREEN_REVIEW_DATA` to use another folder (useful for testing). The
 server prints the folder it is using on startup.
 
-| Route                                                      | Purpose                                                                 |
-| ---------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `GET /api/projects/:projectId/feedback`                    | List feedback                                                           |
-| `POST /api/projects/:projectId/feedback`                   | Create (idempotent on `clientMutationId`)                               |
-| `PATCH /api/projects/:projectId/feedback/:id`              | Update; `409` with the current record if `expectedUpdatedAt` is stale   |
-| `DELETE /api/projects/:projectId/feedback/:id`             | Delete the expected revision                                            |
-| `GET /api/projects`                                        | Registered projects and screens (no local paths or proxy settings)      |
-| `GET /api/projects/:projectId/captures/:version/:screenId` | A screen's capture image, only from inside that version's `captureRoot` |
-| `POST /api/projects/:projectId/feedback/import`            | Merge records saved elsewhere, keeping ids                              |
-| `GET /api/projects/:projectId/approvals`                   | Approved screens (stored beside `feedback.json` in `approvals.json`)    |
-| `PUT /api/projects/:projectId/approvals`                   | Set `{version, screenId, approved}`; returns the full list              |
-| `GET /api/projects/:projectId/captions`                    | Screen descriptions (stored beside `feedback.json` in `captions.json`)  |
-| `PUT /api/projects/:projectId/captions`                    | Set `{version, screenId, text}`; empty text clears; returns the list    |
+| Route                                                      | Purpose                                                                                                                                                      |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/projects/:projectId/feedback`                    | List feedback                                                                                                                                                |
+| `POST /api/projects/:projectId/feedback`                   | Create (idempotent on `clientMutationId`)                                                                                                                    |
+| `PATCH /api/projects/:projectId/feedback/:id`              | Update; `409` with the current record if `expectedUpdatedAt` is stale. Patch `reply: {note, author?}` to answer (server stamps `at`), `reply: null` to clear |
+| `DELETE /api/projects/:projectId/feedback/:id`             | Delete the expected revision                                                                                                                                 |
+| `GET /api/projects`                                        | Registered projects and screens (no local paths or proxy settings)                                                                                           |
+| `GET /api/projects/:projectId/captures/:version/:screenId` | A screen's capture image, only from inside that version's `captureRoot`                                                                                      |
+| `POST /api/projects/:projectId/feedback/import`            | Merge records saved elsewhere, keeping ids                                                                                                                   |
+| `GET /api/projects/:projectId/approvals`                   | Approved screens (stored beside `feedback.json` in `approvals.json`)                                                                                         |
+| `PUT /api/projects/:projectId/approvals`                   | Set `{version, screenId, approved}`; returns the full list                                                                                                   |
+| `GET /api/projects/:projectId/captions`                    | Screen descriptions (stored beside `feedback.json` in `captions.json`)                                                                                       |
+| `PUT /api/projects/:projectId/captions`                    | Set `{version, screenId, text}`; empty text clears; returns the list                                                                                         |
 
 Every mutation must carry a loopback `Origin` header and a JSON body (1 MB
 max); requests with a non-loopback `Host` header are refused. If
@@ -108,6 +112,27 @@ Feedback saved by earlier builds in browser `localStorage` is imported on first
 load. The browser copy is removed only after every record is accepted; anything
 unreadable is left in place and reported. Project registrations, captures,
 feedback, and injected headers must remain outside Git.
+
+## Closing the loop (for agents)
+
+After working through exported feedback, an agent answers each comment with
+`scripts/reply.mjs`, which talks to the running workbench:
+
+```bash
+# Open comments, tab-separated: id, version/screen pin N, status, tags, note
+node scripts/reply.mjs --project ship-a-skill --port 4191 --list
+
+# Say what was done and mark it Fixed (or --status wont-fix with the reason)
+node scripts/reply.mjs --project ship-a-skill --port 4191 \
+  --id <feedbackId> --status fixed --author Copilot \
+  --note "Moved the footer to the end of the page."
+```
+
+`--status` accepts `fixed`, `wont-fix`, `in-progress` or `backlog` and may be
+left out to reply without moving the comment. `--clear` removes a reply.
+Markdown exports list each comment's `id` so the agent can address it; if the
+reviewer edits a comment at the same moment, the script re-reads and retries
+once.
 
 ## Register Ship a Skill locally
 

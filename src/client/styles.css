@@ -1403,6 +1403,35 @@ button.tag-chip:hover {
   font-size: 11px;
 }
 
+.feedback-reply {
+  display: grid;
+  grid-column: 2;
+  gap: 2px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-alt);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.feedback-editor .feedback-reply {
+  grid-column: auto;
+}
+
+.feedback-reply-meta {
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.feedback-reply-note {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* Status sections (Backlog, In progress, ...) each hold P0-P2 groups. */
 .feedback-section {
   display: grid;

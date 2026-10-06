@@ -413,11 +413,12 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
           current,
         );
       }
-      const updated = feedbackRecordSchema.parse({
-        ...current,
-        ...input.patch,
-        updatedAt: nextUpdatedAt(now(), current.updatedAt),
-      });
+      const updatedAt = nextUpdatedAt(now(), current.updatedAt);
+      const { reply, ...patch } = input.patch;
+      const next: Record<string, unknown> = { ...current, ...patch, updatedAt };
+      if (reply === null) delete next.reply;
+      else if (reply) next.reply = { ...reply, at: updatedAt };
+      const updated = feedbackRecordSchema.parse(next);
       const nextFeedback = [...feedback];
       nextFeedback[index] = updated;
       await write(projectId, nextFeedback);

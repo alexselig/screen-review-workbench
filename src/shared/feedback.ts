@@ -32,6 +32,19 @@ export const STATUS_LABELS: Record<(typeof FEEDBACK_STATUSES)[number], string> =
     RESOLVED: "Fixed",
     WONT_FIX: "Won't fix",
   };
+export const REPLY_MAX_LENGTH = 2000;
+
+// The fixer's answer to a comment (usually an agent): what was done, or why not.
+export const replyInputSchema = z.object({
+  note: z.string().trim().min(1).max(REPLY_MAX_LENGTH),
+  author: z.string().trim().min(1).max(64).optional().default("Agent"),
+});
+export const feedbackReplySchema = z.object({
+  note: z.string().trim().min(1).max(REPLY_MAX_LENGTH),
+  author: z.string().trim().min(1).max(64),
+  at: z.iso.datetime(),
+});
+
 export const normalizedCoordinateSchema = z.number().finite().min(0).max(1);
 
 export function normalizeTags(tags: readonly string[]): string[] {
@@ -85,6 +98,7 @@ const feedbackRecordObjectSchema = z.object({
   note: z.string().trim().min(1),
   tags: feedbackTagsSchema,
   status: feedbackStatusSchema,
+  reply: feedbackReplySchema.optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -110,6 +124,8 @@ export const feedbackPatchSchema = z
     note: z.string().trim().min(1).optional(),
     tags: feedbackTagsSchema.optional(),
     status: feedbackStatusSchema.optional(),
+    // null clears the reply; the server stamps `at`.
+    reply: replyInputSchema.nullable().optional(),
   })
   .refine((patch) => Object.keys(patch).length > 0, {
     message: "Feedback update must change at least one field.",
@@ -124,6 +140,7 @@ export type FeedbackStatus = z.infer<typeof feedbackStatusSchema>;
 export type FeedbackRecord = z.infer<typeof feedbackRecordSchema>;
 export type CreateFeedbackInput = z.input<typeof createFeedbackInputSchema>;
 export type UpdateFeedbackInput = z.infer<typeof updateFeedbackInputSchema>;
+export type FeedbackReply = z.infer<typeof feedbackReplySchema>;
 export type FeedbackPatch = z.infer<typeof feedbackPatchSchema>;
 
 export type FrameRect = {

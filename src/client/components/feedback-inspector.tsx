@@ -19,6 +19,7 @@ import {
   priorityTag,
   type CreateFeedbackInput,
   type FeedbackRecord,
+  type FeedbackReply,
   type FeedbackStatus,
   type UpdateFeedbackInput,
 } from "../../shared/feedback";
@@ -104,10 +105,7 @@ function readCollapsedStatuses(): FeedbackStatus[] {
 }
 
 function writeCollapsedStatuses(statuses: readonly FeedbackStatus[]) {
-  window.localStorage.setItem(
-    COLLAPSED_STATUSES_KEY,
-    JSON.stringify(statuses),
-  );
+  window.localStorage.setItem(COLLAPSED_STATUSES_KEY, JSON.stringify(statuses));
 }
 
 function readRecoveryEntries(projectId: string): RecoveryEntries {
@@ -156,6 +154,26 @@ function writeRecovery(
 
 // Shared by canvas pins and comment cards so a number reads as the same
 // object in both places.
+const REPLY_TIME = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+// The fixer's answer to a comment, shown on its card and in the editor.
+function ReplyNote({ reply }: { reply: FeedbackReply }) {
+  return (
+    <span className="feedback-reply" data-testid="feedback-reply">
+      <span className="feedback-reply-meta">
+        Reply · {reply.author} ·{" "}
+        <time dateTime={reply.at}>{REPLY_TIME.format(new Date(reply.at))}</time>
+      </span>
+      <span className="feedback-reply-note">{reply.note}</span>
+    </span>
+  );
+}
+
 export function pinDotClassName(item: FeedbackRecord, selected: boolean) {
   return [
     "pin-dot",
@@ -232,8 +250,8 @@ export function FeedbackInspector({
     const recovery = draftPin
       ? initialCreateRecovery
       : selected
-      ? initialRecoveries[updateRecoveryKey(selected.id)]
-      : initialCreateRecovery;
+        ? initialRecoveries[updateRecoveryKey(selected.id)]
+        : initialCreateRecovery;
     return recovery
       ? {
           note: recovery.note,
@@ -254,9 +272,9 @@ export function FeedbackInspector({
     null,
   );
   const [deleteMessage, setDeleteMessage] = useState("");
-  const [collapsedStatuses, setCollapsedStatuses] = useState<
-    FeedbackStatus[]
-  >(readCollapsedStatuses);
+  const [collapsedStatuses, setCollapsedStatuses] = useState<FeedbackStatus[]>(
+    readCollapsedStatuses,
+  );
   // Where the open editor sits in the list. It is captured when editing
   // starts and held until the card closes, so retagging, changing status,
   // or a new pin's first save never moves (and remounts) the note box.
@@ -779,6 +797,7 @@ export function FeedbackInspector({
               ))}
             </span>
           ) : null}
+          {item.reply ? <ReplyNote reply={item.reply} /> : null}
         </button>
         {deleteButton(item)}
         {deleteConfirm(item)}
@@ -852,6 +871,7 @@ export function FeedbackInspector({
           value={editor.note}
         />
       </label>
+      {editingRecord?.reply ? <ReplyNote reply={editingRecord.reply} /> : null}
       <fieldset className="feedback-tags">
         <legend>Tags</legend>
         <div className="feedback-tag-row">

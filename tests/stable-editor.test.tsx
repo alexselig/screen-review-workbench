@@ -81,6 +81,20 @@ describe("typing feedback keeps the same input", () => {
     const [saved] = await api.storage.listFeedback("example");
     expect(saved.tags).toContain("P0");
 
+    // A fresh comment stays in Backlog with no status picker until reopened.
+    expect(
+      screen.queryByRole("combobox", { name: "Feedback status" }),
+    ).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Collapse comment/ }));
+    fireEvent.click(
+      await screen.findByText("Retag me", {
+        selector: ".feedback-comment strong",
+      }),
+    );
+    const reopened = await screen.findByRole("textbox", {
+      name: "Feedback note",
+    });
+
     fireEvent.change(
       screen.getByRole("combobox", { name: "Feedback status" }),
       {
@@ -88,8 +102,10 @@ describe("typing feedback keeps the same input", () => {
       },
     );
     await wait(300);
-    expect(screen.getByRole("textbox", { name: "Feedback note" })).toBe(box);
-    expect(box.closest("section.feedback-section")).toHaveAttribute(
+    expect(screen.getByRole("textbox", { name: "Feedback note" })).toBe(
+      reopened,
+    );
+    expect(reopened.closest("section.feedback-section")).toHaveAttribute(
       "aria-label",
       "Backlog",
     );

@@ -292,6 +292,10 @@ export function FeedbackInspector({
   const latestRecordRef = useRef<FeedbackRecord | null>(null);
   const creatingRef = useRef<Promise<FeedbackRecord> | null>(null);
   const adoptedIdRef = useRef<string | null>(null);
+  // A comment created in this editing session keeps the create layout (no
+  // status picker, no change summary) so the editor does not grow under the
+  // reviewer's cursor when the first autosave lands. New comments are Backlog.
+  const [freshId, setFreshId] = useState<string | null>(null);
   const editorRef = useRef(editor);
   const effectiveDraftPin = draftPin ?? recoveredPin;
 
@@ -320,6 +324,7 @@ export function FeedbackInspector({
   editorRef.current = editor;
 
   useEffect(() => {
+    if (selectedFeedbackId !== freshId) setFreshId(null);
     setConfirmingDeleteId(null);
     setDeleteMessage("");
   }, [selectedFeedbackId]);
@@ -509,6 +514,7 @@ export function FeedbackInspector({
         }
         latestRecordRef.current = created;
         adoptedIdRef.current = created.id;
+        setFreshId(created.id);
         // Always adopt the new record, even if the reviewer kept typing, so
         // later saves update it rather than creating a duplicate pin.
         writeRecovery(
@@ -808,6 +814,7 @@ export function FeedbackInspector({
   // The comment being edited renders as the editor in its own list slot, so it
   // never appears twice (once as a saved card and again in the editor).
   const editingRecord = effectiveDraftPin ? null : visibleSelectedRecord;
+  const freshRecord = Boolean(editingRecord && editingRecord.id === freshId);
   const slotKey = effectiveDraftPin ? "draft" : (editingRecord?.id ?? null);
   if ((heldSlot?.key ?? null) !== slotKey) {
     if (!slotKey) {
@@ -924,7 +931,7 @@ export function FeedbackInspector({
           />
         </div>
       </fieldset>
-      {editingRecord ? (
+      {editingRecord && !freshRecord ? (
         <label>
           Status
           <select
@@ -941,6 +948,9 @@ export function FeedbackInspector({
         </label>
       ) : null}
 
+      <span aria-live="polite" className="feedback-save-state" role="status">
+        {saveMessage}
+      </span>
       {effectiveDraftPin ? (
         <button
           className="feedback-cancel-button"
@@ -959,9 +969,6 @@ export function FeedbackInspector({
           Cancel pin
         </button>
       ) : null}
-      <span aria-live="polite" className="feedback-save-state" role="status">
-        {saveMessage}
-      </span>
       {editingRecord ? deleteBar(editingRecord) : null}
     </section>
   );

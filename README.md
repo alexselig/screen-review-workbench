@@ -43,6 +43,9 @@ The server binds to `http://127.0.0.1:4173`.
   are hidden and untagged comments sit under their status with no heading.
   A card being edited stays where it is while you type, even after autosave,
   retagging or a status change; it moves to its new group when collapsed.
+  A new comment always starts in Backlog and keeps the compact create form
+  through its first autosave, so the editor never grows under your cursor;
+  the status picker appears once you reopen it.
   Each status section has a **Hide pins / Show pins** switch on its right;
   Fixed pins are hidden by default and the choice is remembered per browser.
 - **Approve screen** is pinned to the foot of the feedback panel. One click

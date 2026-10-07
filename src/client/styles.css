@@ -1098,6 +1098,10 @@ h1 {
   cursor: pointer;
 }
 
+.feedback-editor .feedback-cancel-button {
+  margin-top: 4px;
+}
+
 .feedback-add-button {
   border-color: var(--bauhaus-orange);
   background: var(--bauhaus-orange);
@@ -1561,7 +1565,9 @@ button.tag-chip:hover {
 }
 
 .feedback-save-state {
-  min-height: 18px;
+  display: block;
+  height: 18px;
+  line-height: 18px;
   color: var(--ink-muted);
   font-size: 12px;
 }

@@ -7,6 +7,9 @@ The repository contains generic tooling and example data only. Project source,
 captures, injected headers, feedback, and identities live in ignored local
 configuration under `~/.screen-review-workbench`.
 
+**Site:** https://alexselig.github.io/screen-review-workbench/ (feature tour
+with screenshots).
+
 ## Development
 
 ```bash
@@ -169,3 +172,18 @@ document, takes the full-page shot, then restores their inline styles exactly.
 Headers, full-screen dialogs, and pages shorter than the viewport are left
 alone. Apps that scroll an inner container (a `100vh` body with its own
 scroller) are not covered; capture those by scrolling the container instead.
+
+## Project site
+
+`docs/` is the GitHub Pages site. Its screenshots come from a made-up ferry app
+("Tidewater") so no real project appears in them. To regenerate them:
+
+```bash
+node scripts/site/build-shots.mjs          # writes docs/assets/*.png
+node scripts/site/build-shots.mjs --serve  # leaves the seeded demo running on :4196
+```
+
+The script renders each demo screen through `captureFullPage`, registers them
+in a temporary folder, starts a server on port 4196 with temporary data, seeds
+the comments, replies and approvals through the API, and captures the shots
+listed in `scripts/site/shots.mjs`. Nothing touches `~/.screen-review-workbench`.

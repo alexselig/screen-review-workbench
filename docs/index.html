@@ -1,0 +1,1164 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>
+      Screen Review Workbench: pin feedback to the screen it's about
+    </title>
+    <meta
+      name="description"
+      content="A localhost design-review workbench. Pin numbered feedback on captures of every screen, sort it by status, approve screens one by one, and let agents reply when they fix things."
+    />
+    <meta property="og:title" content="Screen Review Workbench" />
+    <meta
+      property="og:description"
+      content="Pin numbered feedback on captures of every screen, approve them one by one, and let agents close the loop."
+    />
+    <meta property="og:image" content="assets/hero.png" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23141414'/%3E%3Ctext x='16' y='24' font-family='Arial Black,Arial' font-weight='900' font-size='22' fill='%23fff' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=League+Spartan:wght@600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --surface: #ffffff;
+        --surface-alt: #f5f3ee;
+        --line: #e3e5e9;
+        --line-strong: #7d828b;
+        --ink: #141414;
+        --ink-muted: #5b5f66;
+        --orange: #f26522;
+        --orange-text: #b4410b;
+        --blue: #2f5bea;
+        --blue-soft: #edf1ff;
+        --blue-line: #cfd8fb;
+        --teal: #17634d;
+        --teal-soft: #eaf5f0;
+        --space-1: 4px;
+        --space-2: 8px;
+        --space-3: 16px;
+        --space-4: 24px;
+        --space-5: 32px;
+        --space-6: 48px;
+        --space-7: 96px;
+        --space-8: 144px;
+        --fast: 160ms;
+        --display: "League Spartan", Futura, "Avenir Next", sans-serif;
+        --sans: Figtree, "Avenir Next", sans-serif;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        --wrap: 1200px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 72px;
+      }
+      body {
+        margin: 0;
+        background: var(--surface);
+        color: var(--ink);
+        font: 400 17px/1.6 var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      img {
+        display: block;
+        max-width: 100%;
+        height: auto;
+      }
+      a {
+        color: var(--blue);
+        text-underline-offset: 3px;
+      }
+      a:visited {
+        color: #2647b5;
+      }
+      :focus-visible {
+        outline: 3px solid var(--orange);
+        outline-offset: 3px;
+      }
+      .wrap {
+        width: min(var(--wrap), 100% - 2 * var(--space-4));
+        margin-inline: auto;
+      }
+      .eyebrow {
+        margin: 0 0 var(--space-3);
+        font: 700 13px/1 var(--display);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+      h1,
+      h2,
+      h3 {
+        font-family: var(--display);
+        font-weight: 700;
+        text-transform: uppercase;
+        line-height: 1.02;
+        margin: 0;
+        text-wrap: balance;
+      }
+      code,
+      pre {
+        font-family: var(--mono);
+        font-size: 14px;
+      }
+
+      /* Bar */
+      .bar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: var(--ink);
+        color: #fff;
+      }
+      .bar .wrap {
+        display: flex;
+        align-items: center;
+        gap: var(--space-5);
+        height: 64px;
+      }
+      .mark {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: #fff;
+        text-decoration: none;
+        font: 700 15px/1 var(--display);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .mark:visited {
+        color: #fff;
+      }
+      .mark b {
+        display: grid;
+        place-items: center;
+        width: 32px;
+        height: 32px;
+        background: #fff;
+        color: var(--ink);
+        font-size: 22px;
+        padding-top: 3px;
+      }
+      .bar nav {
+        margin-left: auto;
+        display: flex;
+        gap: var(--space-4);
+      }
+      .bar nav a {
+        color: #fff;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 15px;
+        padding: 10px 0;
+      }
+      .bar nav a:hover {
+        text-decoration: underline;
+      }
+      .bar nav a.gh {
+        padding: 10px 16px;
+        border: 1px solid #fff;
+      }
+
+      /* Hero */
+      .hero {
+        background: var(--blue);
+        color: #fff;
+        padding: var(--space-7) 0 0;
+      }
+      .hero-grid {
+        display: grid;
+        grid-template-columns: 1.25fr 1fr;
+        gap: var(--space-6);
+        align-items: end;
+      }
+      .hero h1 {
+        font-size: clamp(44px, 6.4vw, 88px);
+      }
+      .hero .lede {
+        margin: 0 0 var(--space-4);
+        font-size: 20px;
+        line-height: 1.5;
+        max-width: 34ch;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3);
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        min-height: 48px;
+        padding: 0 var(--space-4);
+        font: 700 16px/1 var(--sans);
+        text-decoration: none;
+        border: 2px solid transparent;
+        transition:
+          background var(--fast) ease-out,
+          color var(--fast) ease-out;
+      }
+      .btn-orange,
+      .btn-orange:visited {
+        background: var(--orange);
+        color: var(--ink);
+      }
+      .btn-orange:hover {
+        background: #ff7a3a;
+      }
+      .btn-line,
+      .btn-line:visited {
+        border-color: #fff;
+        color: #fff;
+      }
+      .btn-line:hover {
+        background: #fff;
+        color: var(--blue);
+      }
+      .stage {
+        position: relative;
+        margin-top: var(--space-6);
+      }
+      .stage::after {
+        content: "";
+        position: absolute;
+        inset: auto calc(50% - 50vw) 0;
+        height: 46%;
+        background: var(--surface);
+        z-index: -1;
+      }
+      .hero {
+        position: relative;
+        z-index: 0;
+        overflow: hidden;
+      }
+      .shot-frame {
+        position: relative;
+        border: 2px solid var(--ink);
+        box-shadow: 10px 10px 0 var(--ink);
+        background: #fff;
+      }
+      .callout {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: var(--blue);
+        color: #fff;
+        border: 3px solid #fff;
+        box-shadow: 0 0 0 2px var(--ink);
+        font: 700 16px/1 var(--display);
+        padding-top: 2px;
+        text-decoration: none;
+        transition: transform var(--fast) ease-out;
+      }
+      .callout:visited {
+        color: #fff;
+      }
+      .callout:hover,
+      .callout:focus-visible {
+        transform: translate(-50%, -50%) scale(1.15);
+      }
+      .legend {
+        list-style: none;
+        margin: var(--space-5) 0 0;
+        padding: 0;
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-2) var(--space-4);
+      }
+      .legend a {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--ink);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 15px;
+        min-height: 44px;
+      }
+      .legend a:hover span:last-child {
+        text-decoration: underline;
+      }
+      .dot {
+        display: inline-grid;
+        place-items: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        background: var(--blue);
+        color: #fff;
+        font: 700 13px/1 var(--display);
+        padding-top: 2px;
+        flex: none;
+      }
+
+      /* Problem strip */
+      .why {
+        padding: var(--space-7) 0 var(--space-6);
+      }
+      .why-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border-top: 2px solid var(--ink);
+      }
+      .why-grid div {
+        padding: var(--space-4) var(--space-4) 0 0;
+      }
+      .why-grid div + div {
+        padding-left: var(--space-4);
+        border-left: 1px solid var(--line);
+      }
+      .why h2 {
+        font-size: clamp(32px, 4vw, 52px);
+        margin-bottom: var(--space-5);
+        max-width: 18ch;
+      }
+      .why h3 {
+        font-size: 18px;
+        margin-bottom: var(--space-2);
+      }
+      .why p {
+        margin: 0;
+        color: var(--ink-muted);
+      }
+
+      /* Features */
+      .feature {
+        padding: var(--space-6) 0;
+        border-top: 1px solid var(--line);
+      }
+      .feature-grid {
+        display: grid;
+        grid-template-columns: 5fr 7fr;
+        gap: var(--space-6);
+        align-items: center;
+      }
+      .feature:nth-of-type(even) .feature-grid {
+        grid-template-columns: 7fr 5fr;
+      }
+      .feature:nth-of-type(even) .copy {
+        order: 2;
+      }
+      .feature .num {
+        display: inline-grid;
+        place-items: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: var(--blue);
+        color: #fff;
+        font: 700 20px/1 var(--display);
+        padding-top: 3px;
+        margin-bottom: var(--space-4);
+      }
+      .feature h2 {
+        font-size: clamp(30px, 3.4vw, 44px);
+        margin-bottom: var(--space-3);
+      }
+      .feature p {
+        margin: 0 0 var(--space-3);
+        max-width: 46ch;
+      }
+      .feature ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        border-top: 1px solid var(--line);
+        max-width: 46ch;
+      }
+      .feature li {
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 16px;
+      }
+      .feature li b {
+        font-weight: 700;
+      }
+      .feature figure {
+        margin: 0;
+      }
+      .feature figure img {
+        border: 2px solid var(--ink);
+      }
+      .feature figcaption {
+        margin-top: var(--space-2);
+        font-size: 14px;
+        color: var(--ink-muted);
+      }
+      .tag {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 999px;
+        font-size: 13px;
+        font-weight: 700;
+      }
+      .t-teal {
+        background: var(--teal-soft);
+        color: var(--teal);
+      }
+      .t-orange {
+        background: #fff3ed;
+        color: var(--orange-text);
+      }
+
+      /* Agents */
+      .agents {
+        background: var(--ink);
+        color: #fff;
+        padding: var(--space-7) 0;
+      }
+      .agents-grid {
+        display: grid;
+        grid-template-columns: 5fr 7fr;
+        gap: var(--space-6);
+        align-items: start;
+      }
+      .agents-grid > *,
+      .feature-grid > *,
+      .hero-grid > * {
+        min-width: 0;
+      }
+      .agents .eyebrow {
+        color: var(--orange);
+      }
+      .agents h2 {
+        font-size: clamp(34px, 4.4vw, 56px);
+        margin-bottom: var(--space-4);
+      }
+      .agents p {
+        margin: 0 0 var(--space-3);
+        color: #d6d8dc;
+        max-width: 44ch;
+      }
+      .agents a,
+      .agents a:visited {
+        color: #fff;
+      }
+      .steps {
+        list-style: none;
+        counter-reset: s;
+        margin: var(--space-4) 0 0;
+        padding: 0;
+      }
+      .steps li {
+        counter-increment: s;
+        display: grid;
+        grid-template-columns: 40px 1fr;
+        gap: var(--space-3);
+        padding: 12px 0;
+        border-top: 1px solid #3a3d42;
+        color: #d6d8dc;
+      }
+      .steps li::before {
+        content: counter(s, decimal-leading-zero);
+        font: 700 15px/1.6 var(--display);
+        color: var(--orange);
+      }
+      pre {
+        margin: 0;
+        padding: var(--space-4);
+        overflow-x: auto;
+        line-height: 1.6;
+        background: #1f2125;
+        color: #f1f1f1;
+        border: 1px solid #3a3d42;
+      }
+      pre + pre {
+        margin-top: var(--space-3);
+      }
+      pre .c {
+        color: #9aa0a8;
+      }
+      pre .k {
+        color: #ff9a62;
+      }
+      .agents figure {
+        margin: var(--space-4) 0 0;
+      }
+      .agents figure img {
+        border: 2px solid #fff;
+      }
+
+      /* Install */
+      .install {
+        padding: var(--space-7) 0;
+      }
+      .install h2 {
+        font-size: clamp(34px, 4.4vw, 56px);
+        margin-bottom: var(--space-5);
+      }
+      .install-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: var(--space-5);
+      }
+      .install-grid > div {
+        border-top: 4px solid var(--ink);
+        padding-top: var(--space-3);
+        min-width: 0;
+      }
+      .install h3 {
+        font-size: 20px;
+        margin-bottom: var(--space-2);
+      }
+      .install p {
+        margin: 0 0 var(--space-3);
+        color: var(--ink-muted);
+        font-size: 16px;
+      }
+      .install pre {
+        background: var(--surface-alt);
+        color: var(--ink);
+        border: 1px solid var(--line);
+        font-size: 13px;
+        padding: var(--space-3);
+      }
+      .install code {
+        background: var(--surface-alt);
+        padding: 1px 5px;
+      }
+      .install pre code {
+        background: none;
+        padding: 0;
+      }
+      .note {
+        margin-top: var(--space-5);
+        padding: var(--space-3) var(--space-4);
+        background: var(--blue-soft);
+        border: 1px solid var(--blue-line);
+        font-size: 16px;
+      }
+
+      footer {
+        background: var(--surface-alt);
+        border-top: 1px solid var(--line);
+        padding: var(--space-5) 0;
+        font-size: 15px;
+        color: var(--ink-muted);
+      }
+      footer .wrap {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-3) var(--space-5);
+        align-items: center;
+      }
+      footer .mark {
+        color: var(--ink);
+      }
+      footer .mark:visited {
+        color: var(--ink);
+      }
+      footer .mark b {
+        background: var(--ink);
+        color: #fff;
+      }
+      footer nav {
+        margin-left: auto;
+        display: flex;
+        gap: var(--space-4);
+      }
+
+      @media (max-width: 960px) {
+        .hero-grid,
+        .feature-grid,
+        .feature:nth-of-type(even) .feature-grid,
+        .agents-grid {
+          grid-template-columns: 1fr;
+        }
+        .feature:nth-of-type(even) .copy {
+          order: 0;
+        }
+        .why-grid,
+        .install-grid {
+          grid-template-columns: 1fr;
+        }
+        .why-grid div + div {
+          padding-left: 0;
+          border-left: 0;
+          border-top: 1px solid var(--line);
+          margin-top: var(--space-4);
+        }
+        .hero {
+          padding-top: var(--space-6);
+        }
+      }
+      @media (max-width: 640px) {
+        body {
+          font-size: 16px;
+        }
+        .bar nav a:not(.gh) {
+          display: none;
+        }
+        .mark span {
+          display: none;
+        }
+        .callout,
+        .legend {
+          display: none;
+        }
+        .shot-frame {
+          box-shadow: 6px 6px 0 var(--ink);
+        }
+        .hero .lede {
+          font-size: 18px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+        * {
+          transition: none !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="bar">
+      <div class="wrap">
+        <a
+          class="mark"
+          href="#top"
+          aria-label="Screen Review Workbench, back to top"
+          ><b aria-hidden="true">R</b><span>Screen Review Workbench</span></a
+        >
+        <nav aria-label="Sections">
+          <a href="#features">Features</a>
+          <a href="#agents">Agents</a>
+          <a href="#install">Install</a>
+          <a
+            class="gh"
+            href="https://github.com/alexselig/screen-review-workbench"
+            >GitHub</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="wrap">
+          <div class="hero-grid">
+            <div>
+              <p class="eyebrow">Design review on localhost</p>
+              <h1 id="hero-title">Pin feedback to the screen it's about.</h1>
+            </div>
+            <div>
+              <p class="lede">
+                Capture every screen of your app, drop numbered pins where the
+                problems are, and approve screens one by one. When an agent
+                fixes a pin, it says what it changed, right on the card.
+              </p>
+              <div class="actions">
+                <a class="btn btn-orange" href="#install">Run it locally</a>
+                <a class="btn btn-line" href="#features">See what it does</a>
+              </div>
+            </div>
+          </div>
+
+          <div class="stage">
+            <div class="shot-frame">
+              <img
+                src="assets/hero.png"
+                width="2880"
+                height="1800"
+                alt="The workbench reviewing a ferry-booking app. A screen index on the left lists nine screens with approval checks and open-comment counts, the middle shows the 'Pick a sailing' capture with two orange pins, and the right panel groups the comments by status and priority."
+              />
+              <a
+                class="callout"
+                href="#f1"
+                style="left: 47%; top: 47%"
+                aria-label="Feature 1: Pin it where it is"
+                >1</a
+              >
+              <a
+                class="callout"
+                href="#f2"
+                style="left: 77.5%; top: 19%"
+                aria-label="Feature 2: Sort by status"
+                >2</a
+              >
+              <a
+                class="callout"
+                href="#f3"
+                style="left: 78.6%; top: 72%"
+                aria-label="Feature 3: Agents close the loop"
+                >3</a
+              >
+              <a
+                class="callout"
+                href="#f4"
+                style="left: 78.6%; top: 89%"
+                aria-label="Feature 4: Approve screen by screen"
+                >4</a
+              >
+              <a
+                class="callout"
+                href="#f5"
+                style="left: 74%; top: 22.5%"
+                aria-label="Feature 5: Say what the screen shows"
+                >5</a
+              >
+              <a
+                class="callout"
+                href="#f6"
+                style="left: 6%; top: 96.5%"
+                aria-label="Feature 6: Fullscreen review"
+                >6</a
+              >
+              <a
+                class="callout"
+                href="#f7"
+                style="left: 78.5%; top: 96.5%"
+                aria-label="Feature 7: Export for the backlog"
+                >7</a
+              >
+            </div>
+            <ol class="legend" aria-label="What the numbers point at">
+              <li>
+                <a href="#f1"><span class="dot">1</span><span>Pins</span></a>
+              </li>
+              <li>
+                <a href="#f2"
+                  ><span class="dot">2</span><span>Status groups</span></a
+                >
+              </li>
+              <li>
+                <a href="#f3"
+                  ><span class="dot">3</span><span>Agent replies</span></a
+                >
+              </li>
+              <li>
+                <a href="#f4"
+                  ><span class="dot">4</span><span>Approvals</span></a
+                >
+              </li>
+              <li>
+                <a href="#f5"
+                  ><span class="dot">5</span><span>Showing strip</span></a
+                >
+              </li>
+              <li>
+                <a href="#f6"
+                  ><span class="dot">6</span><span>Fullscreen</span></a
+                >
+              </li>
+              <li>
+                <a href="#f7"><span class="dot">7</span><span>Export</span></a>
+              </li>
+            </ol>
+          </div>
+        </div>
+      </section>
+
+      <section class="why" aria-labelledby="why-title">
+        <div class="wrap">
+          <h2 id="why-title">Screenshots in chat lose their place.</h2>
+          <div class="why-grid">
+            <div>
+              <h3>One place per screen</h3>
+              <p>
+                Every screen gets a number, a capture and its own comments.
+                "Screen 4, pin 2" means the same thing to everyone.
+              </p>
+            </div>
+            <div>
+              <h3>Nothing leaves your machine</h3>
+              <p>
+                The server binds to 127.0.0.1. Captures, feedback and approvals
+                are plain JSON files in a folder you choose.
+              </p>
+            </div>
+            <div>
+              <h3>Built for fix loops</h3>
+              <p>
+                Export the backlog for an agent, let it reply on each comment,
+                and review the replies against the next capture.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div id="features">
+        <section class="feature" id="f1" aria-labelledby="f1-title">
+          <div class="wrap feature-grid">
+            <div class="copy">
+              <span class="num" aria-hidden="true">1</span>
+              <h2 id="f1-title">Pin it where it is</h2>
+              <p>
+                Press <b>Add feedback</b> (or ⌘F) and click the capture. The pin
+                lands on that exact spot, the editor opens beside it, and the
+                note autosaves as you type.
+              </p>
+              <ul>
+                <li>
+                  Pins sit on an aspect-locked frame, so they stay put at any
+                  window size.
+                </li>
+                <li><b>P0, P1, P2</b> priorities plus any free-text tags.</li>
+                <li>
+                  The card you're typing in never jumps, even when it changes
+                  group.
+                </li>
+              </ul>
+            </div>
+            <figure>
+              <img
+                src="assets/pin-editor.png"
+                width="2880"
+                height="1800"
+                loading="lazy"
+                alt="A new pin dropped on the Children row of the Vehicle and passengers screen, with the feedback editor open on the right showing a note and the P1 tag selected."
+              />
+              <figcaption>
+                A new pin on step 3. The editor shows the same number as the
+                pin.
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="feature" id="f2" aria-labelledby="f2-title">
+          <div class="wrap feature-grid">
+            <div class="copy">
+              <span class="num" aria-hidden="true">2</span>
+              <h2 id="f2-title">Sort by status</h2>
+              <p>
+                Comments group into <b>Backlog</b>, <b>In progress</b>,
+                <b>Fixed</b> and <b>Won't fix</b>, then by priority. Each group
+                has its own <b>Hide pins</b> switch, so you can clear the screen
+                of everything except what still needs work.
+              </p>
+              <ul>
+                <li>
+                  <span class="tag t-teal">Fixed</span> pins turn teal with a
+                  check and start hidden.
+                </li>
+                <li>
+                  Empty groups disappear; untagged comments sit under their
+                  status.
+                </li>
+              </ul>
+            </div>
+            <figure>
+              <img
+                src="assets/statuses.png"
+                width="2880"
+                height="1800"
+                loading="lazy"
+                alt="The Home screen with three pins. The feedback panel shows Backlog, In progress and Won't fix sections, each with a Hide pins control."
+              />
+              <figcaption>
+                Three statuses on one screen, each with its own pin switch.
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="feature" id="f3" aria-labelledby="f3-title">
+          <div class="wrap feature-grid">
+            <div class="copy">
+              <span class="num" aria-hidden="true">3</span>
+              <h2 id="f3-title">Agents close the loop</h2>
+              <p>
+                Whoever fixes a comment can reply on it: what changed, or why it
+                won't. The reply sits under the note on the card, survives later
+                status changes and appears in exports.
+              </p>
+              <ul>
+                <li>One call sets the reply and the status.</li>
+                <li>
+                  Works from any agent with <code>node</code>.
+                  <a href="#agents">See the commands</a>.
+                </li>
+              </ul>
+            </div>
+            <figure>
+              <img
+                src="assets/agent-reply.png"
+                width="2880"
+                height="1800"
+                loading="lazy"
+                alt="The Choose route screen. Under Fixed, a teal pin's card shows the original note and an agent reply: Moved the saving into the Return button label and made Return the default."
+              />
+              <figcaption>
+                A Fixed comment with the agent's reply underneath.
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="feature" id="f4" aria-labelledby="f4-title">
+          <div class="wrap feature-grid">
+            <div class="copy">
+              <span class="num" aria-hidden="true">4</span>
+              <h2 id="f4-title">Approve screen by screen</h2>
+              <p>
+                <b>Approve screen</b> stays at the foot of the feedback panel.
+                One click turns it teal; click again to take it back. The screen
+                index shows a check beside every approved screen and an orange
+                count of open comments beside the rest.
+              </p>
+              <ul>
+                <li>Approvals are saved per build and screen.</li>
+                <li>
+                  Checks and counts read in the expanded, collapsed and
+                  fullscreen index.
+                </li>
+              </ul>
+            </div>
+            <figure>
+              <img
+                src="assets/approved.png"
+                width="2880"
+                height="1800"
+                loading="lazy"
+                alt="The Sign in screen with the Screen approved button in teal at the bottom of the feedback panel. The screen index shows checks next to screens 1, 7 and 9."
+              />
+              <figcaption>
+                Sign in is approved. Screens 7 and 9 are too; the rest still
+                have open comments.
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="feature" id="f5" aria-labelledby="f5-title">
+          <div class="wrap feature-grid">
+            <div class="copy">
+              <span class="num" aria-hidden="true">5</span>
+              <h2 id="f5-title">Say what the screen shows</h2>
+              <p>
+                A <b>Showing</b> strip above each capture says exactly which
+                state you're looking at: "Step 3 of 4, manual entry path". Click
+                to edit it. Long pages are captured whole, with the footer at
+                the end where it belongs.
+              </p>
+              <ul>
+                <li>
+                  Captions default to the screen's description and save per
+                  build.
+                </li>
+                <li>
+                  <code>captureFullPage</code> moves fixed and sticky bottom
+                  bars to the end of the page before the shot.
+                </li>
+              </ul>
+            </div>
+            <figure>
+              <img
+                src="assets/long-page.png"
+                width="2880"
+                height="1800"
+                loading="lazy"
+                alt="The Review and pay screen captured as one long page, with the site footer at the very bottom of the capture and a Showing strip above it reading: Step 4 of 4, full page with saved card."
+              />
+              <figcaption>
+                A full-length checkout page with its footer at the bottom.
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="feature" id="f6" aria-labelledby="f6-title">
+          <div class="wrap feature-grid">
+            <div class="copy">
+              <span class="num" aria-hidden="true">6</span>
+              <h2 id="f6-title">Fullscreen review</h2>
+              <p>
+                The capture takes the whole window. A slim numbered strip on the
+                left expands to screen names on hover, and feedback slides in
+                from the right edge when you need it.
+              </p>
+              <ul>
+                <li><b>← →</b> or <b>[ ]</b> move between screens.</li>
+                <li>
+                  The address bar keeps the project, build and screen, so links
+                  open in the same place.
+                </li>
+              </ul>
+            </div>
+            <figure>
+              <img
+                src="assets/fullscreen.png"
+                width="2880"
+                height="1800"
+                loading="lazy"
+                alt="Fullscreen mode on the Review and pay screen. A narrow numbered strip runs down the left edge with checks and counts, and a Feedback tab sits on the right edge."
+              />
+              <figcaption>
+                Fullscreen keeps the numbers, checks and counts in a 64px strip.
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+
+        <section class="feature" id="f7" aria-labelledby="f7-title">
+          <div class="wrap feature-grid">
+            <div class="copy">
+              <span class="num" aria-hidden="true">7</span>
+              <h2 id="f7-title">Export for the backlog</h2>
+              <p>
+                <b>Export</b> writes Markdown or JSON for all screens or just
+                this one, filtered by status. Exports are deterministic, state
+                their scope and keep the on-screen pin numbers, so "screen 4,
+                pin 2" still means something in a ticket.
+              </p>
+              <ul>
+                <li>
+                  Every comment carries its id, so an agent can reply to it.
+                </li>
+              </ul>
+            </div>
+            <figure>
+              <img
+                src="assets/export.png"
+                width="2880"
+                height="1800"
+                loading="lazy"
+                alt="The Export feedback dialog with Markdown selected, All 9 screens, and Backlog, In progress, Fixed and Won't fix all checked. The footer reads: All 9 screens, version build-42, 14 items."
+              />
+              <figcaption>
+                Fourteen comments across nine screens, ready to hand off.
+              </figcaption>
+            </figure>
+          </div>
+        </section>
+      </div>
+
+      <section class="agents" id="agents" aria-labelledby="agents-title">
+        <div class="wrap agents-grid">
+          <div>
+            <p class="eyebrow">For coding agents</p>
+            <h2 id="agents-title">Fix it, then say so.</h2>
+            <p>
+              The workbench is a review surface you and your agent share. You
+              pin, the agent fixes and replies, and you check the reply against
+              the next capture.
+            </p>
+            <ol class="steps">
+              <li>Review the build and pin what's wrong.</li>
+              <li>Export the backlog as Markdown and hand it to the agent.</li>
+              <li>
+                The agent fixes each comment and replies with
+                <code>reply.mjs</code>.
+              </li>
+              <li>Recapture, read the replies and approve the screen.</li>
+            </ol>
+          </div>
+          <div>
+            <pre><code><span class="c"># Open comments: id, screen, pin, status, tags, note</span>
+<span class="k">node</span> scripts/reply.mjs --project tidewater --list
+
+<span class="c"># Say what changed and mark it Fixed</span>
+<span class="k">node</span> scripts/reply.mjs --project tidewater \
+  --id &lt;feedbackId&gt; --status fixed --author Copilot \
+  --note "Moved the saving into the Return button label."</code></pre>
+            <pre><code><span class="c"># Or explain why not</span>
+<span class="k">node</span> scripts/reply.mjs --project tidewater \
+  --id &lt;feedbackId&gt; --status wont-fix \
+  --note "Keeping it: most repeat bookings start here."</code></pre>
+            <p style="margin-top: var(--space-3)">
+              <code>--status</code> takes <code>fixed</code>,
+              <code>wont-fix</code>, <code>in-progress</code> or
+              <code>backlog</code>. Leave it out to reply without moving the
+              comment. If you edit the same comment at that moment, the script
+              re-reads and retries once.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="install" id="install" aria-labelledby="install-title">
+        <div class="wrap">
+          <p class="eyebrow">Install</p>
+          <h2 id="install-title">Running in three steps</h2>
+          <div class="install-grid">
+            <div>
+              <h3>1. Start it</h3>
+              <p>
+                Node 22 or later. The server listens on
+                <code>127.0.0.1:4173</code> only.
+              </p>
+              <pre><code>git clone https://github.com/alexselig/screen-review-workbench
+cd screen-review-workbench
+npm install
+npm run dev</code></pre>
+            </div>
+            <div>
+              <h3>2. Capture your screens</h3>
+              <p>
+                Use Playwright and the bundled helper, so long pages end at
+                their footer.
+              </p>
+              <pre><code>import { captureFullPage } from
+  "./src/capture/full-page";
+
+await page.goto("http://localhost:3000/checkout");
+await captureFullPage(page, {
+  path: "captures/build-42/checkout.png",
+});</code></pre>
+            </div>
+            <div>
+              <h3>3. Register the project</h3>
+              <p>
+                Save as
+                <code>~/.screen-review-workbench/projects/shop.json</code>.
+              </p>
+              <pre><code>{
+  "id": "shop",
+  "name": "Shop",
+  "versions": [{ "id": "build-42",
+    "captureRoot": "/path/to/captures/build-42" }],
+  "screens": [{
+    "id": "checkout", "ordinal": 1,
+    "title": "Checkout", "group": "Buy",
+    "description": "Step 2 of 3, saved card",
+    "capturePath": "checkout.png",
+    "viewport": { "width": 1440, "height": 1000 }
+  }]
+}</code></pre>
+            </div>
+          </div>
+          <p class="note">
+            Feedback is saved to
+            <code>~/.screen-review-workbench/feedback/&lt;project&gt;/</code>.
+            Set <code>SCREEN_REVIEW_DATA</code> or
+            <code>SCREEN_REVIEW_PROJECTS</code> to use other folders. Every
+            screenshot on this page comes from a made-up app, generated by
+            <code>scripts/site/build-shots.mjs</code>.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <a class="mark" href="#top"
+          ><b aria-hidden="true">R</b><span>Screen Review Workbench</span></a
+        >
+        <nav aria-label="Footer">
+          <a href="https://github.com/alexselig/screen-review-workbench"
+            >Source on GitHub</a
+          >
+          <a href="https://github.com/alexselig/screen-review-workbench#readme"
+            >README</a
+          >
+        </nav>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -123,7 +123,10 @@ describe("feedback storage", () => {
     await expect(
       storage.updateFeedback("demo", created.id, {
         expectedUpdatedAt: created.updatedAt,
-        patch: { status: "RESOLVED" },
+        patch: {
+          status: "RESOLVED",
+          reply: { note: "Updated the primary action.", author: "Agent" },
+        },
       }),
     ).rejects.toEqual(
       expect.objectContaining<Partial<FeedbackConflictError>>({

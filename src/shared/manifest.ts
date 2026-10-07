@@ -25,6 +25,9 @@ export function parseScreens(input: unknown): ReviewScreen[] {
   const ids = new Set<string>();
   const ordinals = new Set<number>();
   for (const screen of screens) {
+    if (!screen.description) {
+      throw new Error(`Screen description is required: ${screen.id}`);
+    }
     if (ids.has(screen.id))
       throw new Error(`Duplicate screen id: ${screen.id}`);
     if (ordinals.has(screen.ordinal)) {

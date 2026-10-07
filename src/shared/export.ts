@@ -15,6 +15,7 @@ export type FeedbackExportInput = {
 type ExportFeedback = FeedbackRecord & {
   screenOrdinal: number | null;
   screenTitle: string;
+  screenDescription: string | null;
   pinNumber: number;
 };
 
@@ -56,6 +57,7 @@ function safeFeedback(input: FeedbackExportInput): ExportFeedback[] {
         ...item,
         screenOrdinal: screen?.ordinal ?? null,
         screenTitle: screen?.title ?? item.screenId,
+        screenDescription: screen?.description ?? null,
         pinNumber: pinNumbers.get(item.id) ?? 0,
       };
     })
@@ -108,6 +110,9 @@ export function serializeMarkdown(input: FeedbackExportInput): string {
       if (currentScreen) lines.push("");
       lines.push(
         `## ${item.screenOrdinal === null ? "—" : String(item.screenOrdinal).padStart(2, "0")} · ${escapeMarkdown(item.screenTitle)}`,
+        ...(item.screenDescription
+          ? [`_Screen: ${escapeMarkdown(item.screenDescription)}_`]
+          : []),
         "",
       );
       currentScreen = screenKey;

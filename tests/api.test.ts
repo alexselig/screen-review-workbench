@@ -67,7 +67,10 @@ describe("feedback API", () => {
 
     const patched = await send("PATCH", `${base}/${feedback.id}`, {
       expectedUpdatedAt: feedback.updatedAt,
-      patch: { status: "RESOLVED" },
+      patch: {
+        status: "RESOLVED",
+        reply: { note: "Completed the requested change.", author: "Agent" },
+      },
     });
     expect(patched.status).toBe(200);
     const updated = (await patched.json()).feedback;

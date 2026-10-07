@@ -34,6 +34,7 @@ afterEach(async () => {
 const screenBase = {
   ordinal: 1,
   title: "Home",
+  description: "Registered home screen state.",
   group: "Main",
   viewport: { width: 1440, height: 2400 },
 };

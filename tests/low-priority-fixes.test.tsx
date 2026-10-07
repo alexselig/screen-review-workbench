@@ -50,6 +50,7 @@ describe("export scope", () => {
       id: "landing",
       ordinal: 1,
       title: "Landing",
+      description: "Landing review state.",
       group: "A",
       viewport: { width: 1440, height: 1000 },
     },
@@ -57,6 +58,7 @@ describe("export scope", () => {
       id: "dashboard",
       ordinal: 2,
       title: "Dashboard",
+      description: "Dashboard review state.",
       group: "A",
       viewport: { width: 1440, height: 1000 },
     },
@@ -69,7 +71,10 @@ describe("export scope", () => {
     const records = await api.storage.listFeedback("example");
     await api.storage.updateFeedback("example", records[0].id, {
       expectedUpdatedAt: records[0].updatedAt,
-      patch: { status: "RESOLVED" },
+      patch: {
+        status: "RESOLVED",
+        reply: { note: "Completed the landing update.", author: "Agent" },
+      },
     });
     const all = await api.storage.listFeedback("example");
     const exported: [string, string][] = [];
@@ -242,6 +247,9 @@ describe("serialized client writes", () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 600));
     });
+    fireEvent.change(screen.getByRole("textbox", { name: "Change summary" }), {
+      target: { value: "Completed the requested edit." },
+    });
     fireEvent.change(status, { target: { value: "RESOLVED" } });
     release();
 
@@ -261,6 +269,9 @@ describe("serialized client writes", () => {
       patch: { note: "Changed in another tab" },
     });
 
+    fireEvent.change(screen.getByRole("textbox", { name: "Change summary" }), {
+      target: { value: "Completed the requested edit." },
+    });
     fireEvent.change(status, { target: { value: "RESOLVED" } });
 
     expect(await screen.findByText(/Retry required/)).toBeInTheDocument();

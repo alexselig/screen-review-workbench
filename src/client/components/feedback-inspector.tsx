@@ -267,6 +267,7 @@ export function FeedbackInspector({
         : EMPTY_EDITOR;
   });
   const [tagDraft, setTagDraft] = useState("");
+  const [replyDraft, setReplyDraft] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null,
@@ -327,6 +328,7 @@ export function FeedbackInspector({
     if (selectedFeedbackId !== freshId) setFreshId(null);
     setConfirmingDeleteId(null);
     setDeleteMessage("");
+    setReplyDraft("");
   }, [selectedFeedbackId]);
 
   useEffect(() => {
@@ -567,6 +569,12 @@ export function FeedbackInspector({
   async function flushStatus(status: FeedbackStatus) {
     const record = latestRecordRef.current;
     if (!record || status === record.status) return;
+    const closesFeedback = status === "RESOLVED" || status === "WONT_FIX";
+    const replyNote = replyDraft.trim() || record.reply?.note;
+    if (closesFeedback && !replyNote) {
+      setSaveMessage("Add a change summary before closing this feedback.");
+      return;
+    }
     if (timerRef.current) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
@@ -575,7 +583,12 @@ export function FeedbackInspector({
     try {
       const updated = await onUpdate(record.id, {
         expectedUpdatedAt: record.updatedAt,
-        patch: { status },
+        patch: {
+          status,
+          ...(closesFeedback
+            ? { reply: { note: replyNote!, author: "Agent" } }
+            : {}),
+        },
       });
       latestRecordRef.current = updated;
       setSaveMessage("Saved");
@@ -596,6 +609,14 @@ export function FeedbackInspector({
 
   function changeStatus(event: ChangeEvent<HTMLSelectElement>) {
     const status = event.target.value as FeedbackStatus;
+    if (
+      (status === "RESOLVED" || status === "WONT_FIX") &&
+      !replyDraft.trim() &&
+      !latestRecordRef.current?.reply
+    ) {
+      setSaveMessage("Add a change summary before closing this feedback.");
+      return;
+    }
     setEditor((current) => ({ ...current, status }));
     void flushStatus(status);
   }
@@ -879,6 +900,17 @@ export function FeedbackInspector({
         />
       </label>
       {editingRecord?.reply ? <ReplyNote reply={editingRecord.reply} /> : null}
+      {editingRecord && !freshRecord ? (
+        <label>
+          Change summary
+          <textarea
+            aria-label="Change summary"
+            onChange={(event) => setReplyDraft(event.target.value)}
+            placeholder="Describe the change made before marking this fixed."
+            value={replyDraft}
+          />
+        </label>
+      ) : null}
       <fieldset className="feedback-tags">
         <legend>Tags</legend>
         <div className="feedback-tag-row">

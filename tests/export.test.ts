@@ -8,6 +8,7 @@ const screens = [
     id: "landing",
     ordinal: 1,
     title: "Public landing",
+    description: "Public sign-in landing page before authentication.",
     group: "Access",
     viewport: { width: 1440, height: 1000 },
   },
@@ -15,6 +16,7 @@ const screens = [
     id: "dashboard",
     ordinal: 3,
     title: "Populated dashboard",
+    description: "Dashboard populated with skills and workflow states.",
     group: "Portfolio",
     viewport: { width: 1440, height: 1000 },
   },
@@ -72,6 +74,13 @@ describe("feedback exports", () => {
     expect(
       JSON.parse(json).feedback.map((item: { id: string }) => item.id),
     ).toEqual(["landing-first", "landing-second", "dashboard-pin"]);
+    expect(JSON.parse(json).feedback[0]).toMatchObject({
+      screenTitle: "Public landing",
+      screenDescription: "Public sign-in landing page before authentication.",
+    });
+    expect(markdown).toContain(
+      "_Screen: Public sign\\-in landing page before authentication._",
+    );
     expect(markdown.indexOf("Landing first")).toBeLessThan(
       markdown.indexOf("Landing second"),
     );

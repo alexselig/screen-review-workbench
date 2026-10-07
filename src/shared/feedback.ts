@@ -127,6 +127,18 @@ export const feedbackPatchSchema = z
     // null clears the reply; the server stamps `at`.
     reply: replyInputSchema.nullable().optional(),
   })
+  .superRefine((patch, context) => {
+    if (
+      (patch.status === "RESOLVED" || patch.status === "WONT_FIX") &&
+      !patch.reply
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["reply"],
+        message: "A change summary is required when closing feedback.",
+      });
+    }
+  })
   .refine((patch) => Object.keys(patch).length > 0, {
     message: "Feedback update must change at least one field.",
   });

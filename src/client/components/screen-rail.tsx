@@ -141,27 +141,29 @@ export function ScreenRail({
                 type="button"
               >
                 <span className="screen-number">
-                  {String(screen.ordinal).padStart(2, "0")}
-                  {approved ? (
-                    <svg
-                      aria-hidden="true"
-                      className="screen-approved-mark"
-                      data-testid="screen-approved-mark"
-                      viewBox="0 0 12 12"
-                    >
-                      <circle cx="6" cy="6" r="6" />
-                      <path d="M3.2 6.2 5.2 8.1 8.9 4.2" />
-                    </svg>
-                  ) : null}
-                  {openCount ? (
-                    <span
-                      aria-hidden="true"
-                      className="screen-open-count"
-                      data-testid="screen-open-count"
-                    >
-                      {openCount}
-                    </span>
-                  ) : null}
+                  <span aria-hidden="true" className="screen-badges">
+                    {approved ? (
+                      <svg
+                        className="screen-approved-mark"
+                        data-testid="screen-approved-mark"
+                        viewBox="0 0 12 12"
+                      >
+                        <circle cx="6" cy="6" r="6" />
+                        <path d="M3.2 6.2 5.2 8.1 8.9 4.2" />
+                      </svg>
+                    ) : null}
+                    {openCount ? (
+                      <span
+                        className="screen-open-count"
+                        data-testid="screen-open-count"
+                      >
+                        {openCount}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span className="screen-ordinal">
+                    {String(screen.ordinal).padStart(2, "0")}
+                  </span>
                 </span>
                 <span className="screen-name">{screen.title}</span>
               </button>

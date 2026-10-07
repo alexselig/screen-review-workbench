@@ -48,9 +48,10 @@ The server binds to `http://127.0.0.1:4173`.
 - **Approve screen** is pinned to the foot of the feedback panel. One click
   approves the screen (teal, "Screen approved"); click again to unapprove.
   Approvals are saved per version and screen in `approvals.json`. Approved
-  screens carry a teal check just left of their number in the screen index, expanded,
-  collapsed and fullscreen. The open-comment count sits just right of the
-  number as a matching orange badge, so both read in the collapsed rail.
+  screens carry a teal check left of their number in the screen index, expanded,
+  collapsed and fullscreen. The open-comment count sits between the check and
+  the number as a matching orange badge, both centered on the digits, so a
+  screen that is approved and still has open comments fits the collapsed rail.
 - A **Showing** strip above each capture says exactly what it shows (for
   example "Step 3 of 5, manual path selected"). Click it to edit; Enter saves,
   Esc cancels. Text is saved per version and screen in `captions.json`; a

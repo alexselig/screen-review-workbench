@@ -66,6 +66,15 @@ describe("ScreenRail", () => {
     expect(
       number?.querySelector("[data-testid=screen-open-count]"),
     ).toHaveTextContent("3");
+    // Badges lead the digits: check outermost, then the count, then "01".
+    const parts = [...(number?.querySelectorAll("*") ?? [])].filter((node) =>
+      node.matches(
+        "[data-testid=screen-approved-mark], [data-testid=screen-open-count], .screen-ordinal",
+      ),
+    );
+    expect(
+      parts.map((node) => node.getAttribute("data-testid") ?? node.textContent),
+    ).toEqual(["screen-approved-mark", "screen-open-count", "01"]);
     const second = screen.getByRole("button", { name: "02. Dashboard" });
     expect(second.querySelector("[data-testid=screen-open-count]")).toBeNull();
   });

@@ -595,7 +595,7 @@ h1 {
   width: 100%;
   min-height: 40px;
   grid-template-columns: 56px minmax(0, 1fr);
-  gap: 4px;
+  gap: 8px;
   align-items: center;
   padding: 6px 8px 6px 4px;
   border: 0;
@@ -624,34 +624,48 @@ h1 {
   outline-color: var(--ink);
 }
 
+/* The number cell is a fixed badge slot plus the digits. The slot keeps every
+   number in one column and has room for both badges, so a screen that is
+   approved and still has open comments fits the collapsed rail. The approved
+   check sits outermost, the open-comment count beside the number. */
 .screen-number {
-  position: relative;
+  display: flex;
+  align-items: center;
   justify-self: center;
-  font-family: var(--font-display);
-  font-size: 16px;
-  text-align: center;
+  gap: 3px;
 }
 
-/* The number is flanked by two matching 14px badges: the approved check on
-   its left and the open-comment count on its right. Both hang outside the
-   number so it stays centered, and both show collapsed or expanded. The paper
-   ring keeps them legible on the blue current row. */
+.screen-badges {
+  display: flex;
+  width: 30px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+/* Trim the digits to cap height so the row and its badges center on the
+   visible glyphs rather than on the display font's padded line box. */
+.screen-ordinal {
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1;
+  min-width: 20px;
+  text-box: trim-both cap alphabetic;
+}
+
+/* The paper ring keeps both badges legible on the blue current row. */
 .screen-approved-mark,
 .screen-open-count {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  flex: none;
   height: 14px;
 }
 
 .screen-approved-mark {
-  right: calc(100% + 3px);
   width: 14px;
   overflow: visible;
 }
 
 .screen-open-count {
-  left: calc(100% + 3px);
   display: grid;
   min-width: 14px;
   place-items: center;

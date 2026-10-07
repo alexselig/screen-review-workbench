@@ -2,8 +2,8 @@
 // Lets an agent close the loop on review comments: list what is open, then
 // reply to each comment (what was done, or why not) and set its status.
 //
-//   node scripts/reply.mjs --project ship-a-skill --list
-//   node scripts/reply.mjs --project ship-a-skill --id <id> --status fixed \
+//   node scripts/reply.mjs --project shop --list
+//   node scripts/reply.mjs --project shop --id <id> --status fixed \
 //     --note "Moved the footer below the fold." [--author Copilot]
 import { pathToFileURL } from "node:url";
 

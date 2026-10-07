@@ -25,7 +25,7 @@ The server binds to `http://127.0.0.1:4173`.
 - Wide and compact numbered navigation with hover/focus expansion and pinning.
 - Fullscreen review: a slim numbered screen strip on the left that expands to
   names on hover, and a feedback edge panel on the right.
-- Stable screen manifests and a local Ship a Skill registration importer.
+- Stable screen manifests, registered from local JSON files.
 - Screen pins placed on an aspect-locked screen frame, so they stay put at any
   window size. Each comment card leads with the same numbered dot as its pin.
 - Free-text tags with suggested P0/P1/P2 priorities (one at a time; new pins
@@ -124,10 +124,10 @@ After working through exported feedback, an agent answers each comment with
 
 ```bash
 # Open comments, tab-separated: id, version/screen pin N, status, tags, note
-node scripts/reply.mjs --project ship-a-skill --port 4191 --list
+node scripts/reply.mjs --project shop --port 4173 --list
 
 # Say what was done and mark it Fixed (or --status wont-fix with the reason)
-node scripts/reply.mjs --project ship-a-skill --port 4191 \
+node scripts/reply.mjs --project shop --port 4173 \
   --id <feedbackId> --status fixed --author Copilot \
   --note "Moved the footer to the end of the page."
 ```
@@ -138,21 +138,36 @@ Markdown exports list each comment's `id` so the agent can address it; if the
 reviewer edits a comment at the same moment, the script re-reads and retries
 once.
 
-## Register Ship a Skill locally
+## Register a project
 
-Ship a Skill remains in its work repository. Register its local checkout and
-external feedback file without copying either into this repository:
+Each project is one JSON file in `~/.screen-review-workbench/projects/` (or
+`SCREEN_REVIEW_PROJECTS`). Captures stay wherever they already live; each
+version points at its folder:
 
-```bash
-node scripts/import-ship-a-skill.mjs \
-  --repo ~/repos/ship-a-skill-tool \
-  --feedback ~/.ship-a-skill-preview/design-review-feedback-state.json
+```json
+{
+  "id": "shop",
+  "name": "Shop",
+  "versions": [
+    { "id": "build-42", "captureRoot": "/path/to/captures/build-42" }
+  ],
+  "screens": [
+    {
+      "id": "checkout",
+      "ordinal": 1,
+      "title": "Checkout",
+      "group": "Buy",
+      "description": "Step 2 of 3, saved card",
+      "capturePath": "checkout.png",
+      "viewport": { "width": 1440, "height": 1000 }
+    }
+  ]
+}
 ```
 
-The registration is written under
-`~/.screen-review-workbench/projects/ship-a-skill.json`. Supply the local E2E
-header at runtime through `SHIP_A_SKILL_E2E_SECRET`; the secret is never stored
-in Git.
+A capture must sit inside its version's `captureRoot`. To register a project
+from its own manifests, keep a small importer script beside the registrations
+rather than in this repository.
 
 ## Capturing long pages
 

@@ -624,32 +624,35 @@ h1 {
   outline-color: var(--ink);
 }
 
-/* The number cell is a fixed badge slot plus the digits. The slot keeps every
-   number in one column and has room for both badges, so a screen that is
-   approved and still has open comments fits the collapsed rail. The approved
-   check sits outermost, the open-comment count beside the number. */
+/* The digits sit dead center in the number column; badges hang off their
+   left edge so they never pull the number off center. The approved check sits
+   above the open-comment count when a screen has both, which keeps the pair
+   inside the 64px collapsed strip. */
 .screen-number {
-  display: flex;
-  align-items: center;
+  position: relative;
   justify-self: center;
-  gap: 3px;
 }
 
 .screen-badges {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 4px);
   display: flex;
-  width: 30px;
-  align-items: center;
-  justify-content: flex-end;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 2px;
+  transform: translateY(-50%);
 }
 
 /* Trim the digits to cap height so the row and its badges center on the
    visible glyphs rather than on the display font's padded line box. */
 .screen-ordinal {
+  display: block;
+  min-width: 20px;
   font-family: var(--font-display);
   font-size: 16px;
   line-height: 1;
-  min-width: 20px;
+  text-align: center;
   text-box: trim-both cap alphabetic;
 }
 

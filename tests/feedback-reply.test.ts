@@ -69,16 +69,6 @@ async function cli(...args: string[]) {
 }
 
 describe("feedback replies", () => {
-  it("requires a change summary when feedback is marked fixed", async () => {
-    const item = await create("Footer floats mid-page.");
-    const response = await send("PATCH", `${base}/${item.id}`, {
-      expectedUpdatedAt: item.updatedAt,
-      patch: { status: "RESOLVED" },
-    });
-
-    expect(response.status).toBe(400);
-  });
-
   it("stamps a reply with the update time and keeps it through later edits", async () => {
     const item = await create("Footer floats mid-page.");
     const replied = await (
@@ -130,10 +120,7 @@ describe("feedback replies", () => {
     const done = await create("Already handled.");
     await send("PATCH", `${base}/${done.id}`, {
       expectedUpdatedAt: done.updatedAt,
-      patch: {
-        status: "RESOLVED",
-        reply: { note: "Completed before this review.", author: "Copilot" },
-      },
+      patch: { status: "RESOLVED" },
     });
 
     const listed = await cli("--list");

@@ -71,7 +71,7 @@ describe("feedback workflow integration", () => {
     );
     expect(onDisk).toContain("Keep this action above the fold.");
     expect(
-      localStorage.getItem("screen-review-workbench.feedback.v1:example"),
+      localStorage.getItem("screencheck.feedback.v1:example"),
     ).toBeNull();
 
     firstRender.unmount();
@@ -173,7 +173,7 @@ describe("legacy browser feedback migration", () => {
     createdAt: "2026-10-05T19:00:00.000Z",
     updatedAt: "2026-10-05T19:00:00.000Z",
   };
-  const key = "screen-review-workbench.feedback.v1:example";
+  const key = "screencheck.feedback.v1:example";
 
   it("moves browser-only feedback to disk and then clears the browser copy", async () => {
     localStorage.setItem(key, JSON.stringify([legacy]));

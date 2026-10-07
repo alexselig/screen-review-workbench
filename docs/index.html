@@ -3,14 +3,12 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>
-      Screen Review Workbench: pin feedback to the screen it's about
-    </title>
+    <title>ScreenCheck: pin feedback to the screen it's about</title>
     <meta
       name="description"
-      content="A localhost design-review workbench. Pin numbered feedback on captures of every screen, sort it by status, approve screens one by one, and let agents reply when they fix things."
+      content="A localhost design-review tool. Pin numbered feedback on captures of every screen, sort it by status, approve screens one by one, and let agents reply when they fix things."
     />
-    <meta property="og:title" content="Screen Review Workbench" />
+    <meta property="og:title" content="ScreenCheck" />
     <meta
       property="og:description"
       content="Pin numbered feedback on captures of every screen, approve them one by one, and let agents close the loop."
@@ -18,7 +16,7 @@
     <meta property="og:image" content="assets/hero.png" />
     <link
       rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23141414'/%3E%3Ctext x='16' y='24' font-family='Arial Black,Arial' font-weight='900' font-size='22' fill='%23fff' text-anchor='middle'%3ER%3C/text%3E%3C/svg%3E"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%23141414'/%3E%3Ctext x='16' y='24' font-family='Arial Black,Arial' font-weight='900' font-size='22' fill='%23fff' text-anchor='middle'%3ES%3C/text%3E%3C/svg%3E"
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -628,19 +626,14 @@
   <body>
     <header class="bar">
       <div class="wrap">
-        <a
-          class="mark"
-          href="#top"
-          aria-label="Screen Review Workbench, back to top"
-          ><b aria-hidden="true">R</b><span>Screen Review Workbench</span></a
+        <a class="mark" href="#top" aria-label="ScreenCheck, back to top"
+          ><b aria-hidden="true">S</b><span>ScreenCheck</span></a
         >
         <nav aria-label="Sections">
           <a href="#features">Features</a>
           <a href="#agents">Agents</a>
           <a href="#install">Install</a>
-          <a
-            class="gh"
-            href="https://github.com/alexselig/screen-review-workbench"
+          <a class="gh" href="https://github.com/alexselig/screencheck"
             >GitHub</a
           >
         </nav>
@@ -674,7 +667,7 @@
                 src="assets/hero.png"
                 width="2880"
                 height="1800"
-                alt="The workbench reviewing a ferry-booking app. A screen index on the left lists nine screens with approval checks and open-comment counts, the middle shows the 'Pick a sailing' capture with two orange pins, and the right panel groups the comments by status and priority."
+                alt="ScreenCheck reviewing a ferry-booking app. A screen index on the left lists nine screens with approval checks and open-comment counts, the middle shows the 'Pick a sailing' capture with two orange pins, and the right panel groups the comments by status and priority."
               />
               <a
                 class="callout"
@@ -1045,9 +1038,9 @@
             <p class="eyebrow">For coding agents</p>
             <h2 id="agents-title">Fix it, then say so.</h2>
             <p>
-              The workbench is a review surface you and your agent share. You
-              pin, the agent fixes and replies, and you check the reply against
-              the next capture.
+              ScreenCheck is a review surface you and your agent share. You pin,
+              the agent fixes and replies, and you check the reply against the
+              next capture.
             </p>
             <ol class="steps">
               <li>Review the build and pin what's wrong.</li>
@@ -1093,8 +1086,8 @@
                 Node 22 or later. The server listens on
                 <code>127.0.0.1:4173</code> only.
               </p>
-              <pre><code>git clone https://github.com/alexselig/screen-review-workbench
-cd screen-review-workbench
+              <pre><code>git clone https://github.com/alexselig/screencheck
+cd screencheck
 npm install
 npm run dev</code></pre>
             </div>
@@ -1116,7 +1109,7 @@ await captureFullPage(page, {
               <h3>3. Register the project</h3>
               <p>
                 Save as
-                <code>~/.screen-review-workbench/projects/shop.json</code>.
+                <code>~/.screencheck/projects/shop.json</code>.
               </p>
               <pre><code>{
   "id": "shop",
@@ -1135,9 +1128,9 @@ await captureFullPage(page, {
           </div>
           <p class="note">
             Feedback is saved to
-            <code>~/.screen-review-workbench/feedback/&lt;project&gt;/</code>.
-            Set <code>SCREEN_REVIEW_DATA</code> or
-            <code>SCREEN_REVIEW_PROJECTS</code> to use other folders. Every
+            <code>~/.screencheck/feedback/&lt;project&gt;/</code>. Set
+            <code>SCREENCHECK_DATA</code> or
+            <code>SCREENCHECK_PROJECTS</code> to use other folders. Every
             screenshot on this page comes from a made-up app, generated by
             <code>scripts/site/build-shots.mjs</code>.
           </p>
@@ -1148,15 +1141,13 @@ await captureFullPage(page, {
     <footer>
       <div class="wrap">
         <a class="mark" href="#top"
-          ><b aria-hidden="true">R</b><span>Screen Review Workbench</span></a
+          ><b aria-hidden="true">S</b><span>ScreenCheck</span></a
         >
         <nav aria-label="Footer">
-          <a href="https://github.com/alexselig/screen-review-workbench"
+          <a href="https://github.com/alexselig/screencheck"
             >Source on GitHub</a
           >
-          <a href="https://github.com/alexselig/screen-review-workbench#readme"
-            >README</a
-          >
+          <a href="https://github.com/alexselig/screencheck#readme">README</a>
         </nav>
       </div>
     </footer>

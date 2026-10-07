@@ -41,7 +41,7 @@ async function request<T>(
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
   } catch {
-    throw new FeedbackApiError("The workbench server is not reachable.", 0);
+    throw new FeedbackApiError("The ScreenCheck server is not reachable.", 0);
   }
   const payload = (await response.json().catch(() => ({}))) as {
     error?: string;
@@ -138,7 +138,7 @@ export async function putCaption(projectId: string, input: SetCaptionInput) {
 }
 
 export function legacyFeedbackKey(projectId: string) {
-  return `screen-review-workbench.feedback.v1:${projectId}`;
+  return `screencheck.feedback.v1:${projectId}`;
 }
 
 // Moves feedback saved by the old browser-only adapter onto disk. The browser

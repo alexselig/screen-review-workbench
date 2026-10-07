@@ -4,12 +4,12 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { AddressInfo } from "node:net";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createServer as createViteServer } from "vite";
 
 import { handleApi, sendJson as json } from "./api";
+import { appHome } from "./home";
 import { createProjectCatalog, defaultProjectsRoot } from "./projects";
 import { assertLoopbackHost, LOOPBACK_HOST } from "./origin";
 import { sharedFeedbackStorage } from "./storage";
@@ -23,8 +23,9 @@ export type ServerOptions = {
 
 export function defaultDataRoot() {
   return (
+    process.env.SCREENCHECK_DATA ??
     process.env.SCREEN_REVIEW_DATA ??
-    join(homedir(), ".screen-review-workbench", "feedback")
+    join(appHome(), "feedback")
   );
 }
 
@@ -87,7 +88,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const running = await startServer({
     port: Number(process.env.PORT ?? "4173"),
   });
-  console.log(`Screen Review Workbench: ${running.origin}`);
+  console.log(`ScreenCheck: ${running.origin}`);
   console.log(`Feedback stored in: ${running.dataRoot}`);
   console.log(`Projects read from: ${running.projectsRoot}`);
 }

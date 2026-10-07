@@ -8,7 +8,7 @@
 // their place in the flow. Afterwards the page is restored exactly.
 //
 // Usage from any Playwright script or spec:
-//   import { captureFullPage } from "screen-review-workbench/capture";
+//   import { captureFullPage } from "screencheck/capture";
 //   await captureFullPage(page, { path: "screen.webp", type: "webp" });
 
 export type PinnedChromeReport = {

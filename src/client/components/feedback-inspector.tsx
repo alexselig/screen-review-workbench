@@ -72,9 +72,8 @@ function sameTags(left: readonly string[], right: readonly string[]) {
   return left.join("\0") === right.join("\0");
 }
 
-const RECOVERY_PREFIX = "screen-review-workbench.feedback-recovery.v1:";
-const COLLAPSED_STATUSES_KEY =
-  "screen-review-workbench:collapsed-feedback-statuses";
+const RECOVERY_PREFIX = "screencheck.feedback-recovery.v1:";
+const COLLAPSED_STATUSES_KEY = "screencheck:collapsed-feedback-statuses";
 const NOTE_SAVE_DELAY_MS = 500;
 
 function recoveryStorageKey(projectId: string) {

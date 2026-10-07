@@ -30,7 +30,7 @@ const USAGE = `Usage:
   reply.mjs --project <id> --list [--all]
   reply.mjs --project <id> --id <feedbackId> --note <text> [--status fixed|wont-fix|in-progress|backlog] [--author <name>]
   reply.mjs --project <id> --id <feedbackId> --clear
-Options: --url <origin> or --port <n> (default $SCREEN_REVIEW_URL, else http://127.0.0.1:$PORT, port 4173 if unset)`;
+Options: --url <origin> or --port <n> (default $SCREENCHECK_URL, else http://127.0.0.1:$PORT, port 4173 if unset)`;
 
 export function parseArgs(argv) {
   const options = {};
@@ -112,6 +112,7 @@ export async function run(
   }
   const origin = (
     options.url ??
+    env.SCREENCHECK_URL ??
     env.SCREEN_REVIEW_URL ??
     `http://127.0.0.1:${options.port ?? env.PORT ?? "4173"}`
   ).replace(/\/$/, "");

@@ -97,12 +97,12 @@ describe("hiding pins by section", () => {
 
   it("falls back to hiding fixed pins when storage is unreadable", () => {
     localStorage.setItem(
-      "screen-review-workbench:hidden-pin-statuses",
+      "screencheck:hidden-pin-statuses",
       "{broken",
     );
     expect(readHiddenPinStatuses()).toEqual(["RESOLVED"]);
     localStorage.setItem(
-      "screen-review-workbench:hidden-pin-statuses",
+      "screencheck:hidden-pin-statuses",
       JSON.stringify(["OPEN", "nonsense"]),
     );
     expect(readHiddenPinStatuses()).toEqual(["OPEN"]);

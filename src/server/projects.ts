@@ -1,10 +1,10 @@
 import { createReadStream } from "node:fs";
 import { readdir, readFile, realpath, stat } from "node:fs/promises";
-import { homedir } from "node:os";
 import path from "node:path";
 
 import { z } from "zod";
 
+import { appHome } from "./home";
 import { parseScreens, type ReviewScreen } from "../shared/manifest";
 import type { PublicProject, ProjectList } from "../shared/projects";
 
@@ -26,7 +26,8 @@ export const EXAMPLE_PROJECT: PublicProject = {
       id: "bootstrap",
       ordinal: 2,
       title: "Session bootstrap",
-      description: "Secure-session handoff while Microsoft identity is verified.",
+      description:
+        "Secure-session handoff while Microsoft identity is verified.",
       group: "Access",
       viewport: { width: 1440, height: 1000 },
       hasCapture: false,
@@ -35,7 +36,8 @@ export const EXAMPLE_PROJECT: PublicProject = {
       id: "dashboard",
       ordinal: 3,
       title: "Populated dashboard",
-      description: "Portfolio dashboard populated with skills and workflow states.",
+      description:
+        "Portfolio dashboard populated with skills and workflow states.",
       group: "Portfolio",
       viewport: { width: 1440, height: 1000 },
       hasCapture: false,
@@ -68,8 +70,9 @@ const CAPTURE_TYPES: Record<string, string> = {
 
 export function defaultProjectsRoot() {
   return (
+    process.env.SCREENCHECK_PROJECTS ??
     process.env.SCREEN_REVIEW_PROJECTS ??
-    path.join(homedir(), ".screen-review-workbench", "projects")
+    path.join(appHome(), "projects")
   );
 }
 

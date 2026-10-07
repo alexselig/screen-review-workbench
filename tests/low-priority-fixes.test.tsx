@@ -281,7 +281,7 @@ describe("serialized client writes", () => {
 describe("recovery validation", () => {
   it("ignores malformed recovery entries and keeps valid ones", async () => {
     localStorage.setItem(
-      "screen-review-workbench.feedback-recovery.v1:example",
+      "screencheck.feedback-recovery.v1:example",
       JSON.stringify({
         "create:live:landing": {
           kind: "create",

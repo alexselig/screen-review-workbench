@@ -257,7 +257,7 @@ describe("FeedbackInspector", () => {
 
   it("recovers a locally saved draft after reload", () => {
     localStorage.setItem(
-      "screen-review-workbench.feedback-recovery.v1:demo",
+      "screencheck.feedback-recovery.v1:demo",
       JSON.stringify({
         "create:live:landing": {
           kind: "create",
@@ -394,7 +394,7 @@ describe("FeedbackInspector", () => {
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
     localStorage.setItem(
-      "screen-review-workbench:collapsed-feedback-statuses",
+      "screencheck:collapsed-feedback-statuses",
       JSON.stringify(["OPEN"]),
     );
 

@@ -1,13 +1,20 @@
-# Screen Review Workbench
+# ScreenCheck
 
 A localhost-only Bauhausian workbench for reviewing live application screens
 and versioned captures with durable pin feedback.
 
 The repository contains generic tooling and example data only. Project source,
 captures, injected headers, feedback, and identities live in ignored local
-configuration under `~/.screen-review-workbench`.
+configuration under `~/.screencheck`.
 
-**Site:** https://alexselig.github.io/screen-review-workbench/ (feature tour
+> **Renamed from Screen Review Workbench.** Existing data keeps working: if
+> `~/.screencheck` does not exist yet, ScreenCheck reads
+> `~/.screen-review-workbench`. To move it, stop the server and run
+> `mv ~/.screen-review-workbench ~/.screencheck`. The old `SCREEN_REVIEW_DATA`,
+> `SCREEN_REVIEW_PROJECTS` and `SCREEN_REVIEW_URL` variables still work, and
+> unsaved drafts and panel settings in the browser carry over automatically.
+
+**Site:** https://alexselig.github.io/screencheck/ (feature tour
 with screenshots).
 
 ## Development
@@ -66,8 +73,8 @@ The server binds to `http://127.0.0.1:4173`.
 - Responsive layout: at 900px and below, screens become a numbered strip and
   the feedback panel stacks under the canvas.
 - Real captures: registered projects are read from
-  `~/.screen-review-workbench/projects/*.json` (override with
-  `SCREEN_REVIEW_PROJECTS`) and each screen's capture is shown at full width.
+  `~/.screencheck/projects/*.json` (override with
+  `SCREENCHECK_PROJECTS`) and each screen's capture is shown at full width.
   The frame takes each capture's own proportions (never stretched to the
   registered viewport), so tall captures make the page longer; the page is the
   scroll area, the screen
@@ -93,10 +100,10 @@ The server binds to `http://127.0.0.1:4173`.
 Feedback is written to disk by the server, never only to the browser:
 
 ```
-~/.screen-review-workbench/feedback/<projectId>/feedback.json
+~/.screencheck/feedback/<projectId>/feedback.json
 ```
 
-Set `SCREEN_REVIEW_DATA` to use another folder (useful for testing). The
+Set `SCREENCHECK_DATA` to use another folder (useful for testing). The
 server prints the folder it is using on startup.
 
 | Route                                                      | Purpose                                                                                                                                                      |
@@ -127,7 +134,7 @@ feedback, and injected headers must remain outside Git.
 ## Closing the loop (for agents)
 
 After working through exported feedback, an agent answers each comment with
-`scripts/reply.mjs`, which talks to the running workbench:
+`scripts/reply.mjs`, which talks to the running ScreenCheck server:
 
 ```bash
 # Open comments, tab-separated: id, version/screen pin N, status, tags, note
@@ -147,8 +154,8 @@ once.
 
 ## Register a project
 
-Each project is one JSON file in `~/.screen-review-workbench/projects/` (or
-`SCREEN_REVIEW_PROJECTS`). Captures stay wherever they already live; each
+Each project is one JSON file in `~/.screencheck/projects/` (or
+`SCREENCHECK_PROJECTS`). Captures stay wherever they already live; each
 version points at its folder:
 
 ```json
@@ -184,7 +191,7 @@ footer or action bar with `position: fixed; bottom: 0` (or a stuck
 in the middle of a long page. Capture scripts should use the helper instead:
 
 ```ts
-import { captureFullPage } from "../screen-review-workbench/src/capture/full-page";
+import { captureFullPage } from "../screencheck/src/capture/full-page";
 
 await captureFullPage(page, { path: "capture.webp", type: "webp" });
 ```
@@ -208,4 +215,4 @@ node scripts/site/build-shots.mjs --serve  # leaves the seeded demo running on :
 The script renders each demo screen through `captureFullPage`, registers them
 in a temporary folder, starts a server on port 4196 with temporary data, seeds
 the comments, replies and approvals through the API, and captures the shots
-listed in `scripts/site/shots.mjs`. Nothing touches `~/.screen-review-workbench`.
+listed in `scripts/site/shots.mjs`. Nothing touches `~/.screencheck`.

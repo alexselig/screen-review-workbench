@@ -130,7 +130,7 @@ function useFollowPage(ref: RefObject<HTMLElement | null>, gap = 0) {
 type LoadState =
   { kind: "loading" } | { kind: "ready" } | { kind: "error"; message: string };
 
-const HIDDEN_PINS_KEY = "screen-review-workbench:hidden-pin-statuses";
+const HIDDEN_PINS_KEY = "screencheck:hidden-pin-statuses";
 
 // Fixed pins are hidden until the reviewer asks to see them.
 export function readHiddenPinStatuses(): FeedbackStatus[] {
@@ -919,7 +919,7 @@ export function App() {
       <header className="workbench-header">
         <div>
           <span className="eyebrow">Design review</span>
-          <h1>Screen Review Workbench</h1>
+          <h1>ScreenCheck</h1>
         </div>
         <div className="header-controls">
           {projects && projects.length > 1 ? (

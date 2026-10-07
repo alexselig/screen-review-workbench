@@ -38,7 +38,7 @@ function inspector(selectedScreenId: string, onRecoverDraft = vi.fn()) {
 describe("recovered draft scope", () => {
   it("keeps a recovered draft on its own screen", () => {
     localStorage.setItem(
-      "screen-review-workbench.feedback-recovery.v1:demo",
+      "screencheck.feedback-recovery.v1:demo",
       JSON.stringify({
         "create:live:landing": {
           kind: "create",

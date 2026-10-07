@@ -33,7 +33,7 @@ async function renderCaptures(browser, captureRoot) {
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
   });
-  // The workbench's own capture helper, so long pages end at their footer.
+  // ScreenCheck's own capture helper, so long pages end at their footer.
   for (const screen of SCREENS) {
     await page.setContent(screen.html);
     await captureFullPage(page, {
@@ -73,8 +73,8 @@ function startServer(dataRoot, projectsRoot) {
       env: {
         ...process.env,
         PORT: String(PORT),
-        SCREEN_REVIEW_DATA: dataRoot,
-        SCREEN_REVIEW_PROJECTS: projectsRoot,
+        SCREENCHECK_DATA: dataRoot,
+        SCREENCHECK_PROJECTS: projectsRoot,
       },
       stdio: ["ignore", "pipe", "inherit"],
     },
@@ -82,7 +82,7 @@ function startServer(dataRoot, projectsRoot) {
   return new Promise((resolve, reject) => {
     child.on("exit", (code) => reject(new Error(`server exited ${code}`)));
     child.stdout.on("data", (chunk) => {
-      if (String(chunk).includes("Screen Review Workbench")) resolve(child);
+      if (String(chunk).includes("ScreenCheck")) resolve(child);
     });
   });
 }

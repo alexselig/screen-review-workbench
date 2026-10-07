@@ -68,7 +68,9 @@ The server binds to `http://127.0.0.1:4173`.
 - Real captures: registered projects are read from
   `~/.screen-review-workbench/projects/*.json` (override with
   `SCREEN_REVIEW_PROJECTS`) and each screen's capture is shown at full width.
-  Tall captures make the page longer; the page is the scroll area, the screen
+  The frame takes each capture's own proportions (never stretched to the
+  registered viewport), so tall captures make the page longer; the page is the
+  scroll area, the screen
   list keeps its place, and the feedback panel follows along.
 - A fixed action bar keeps the fullscreen toggle (left), Prev/Next and the
   current screen (centre), and **Export** and **Add feedback** (right) in reach at the bottom

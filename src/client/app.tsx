@@ -194,6 +194,13 @@ export function App() {
   const selected = screens.find((item) => item.id === selectedId)!;
   const selectedIndex = screens.indexOf(selected);
   const [captureFailed, setCaptureFailed] = useState(false);
+  // A full-page capture can be taller than the registered viewport, so the
+  // frame takes the loaded image's own proportions rather than stretching it.
+  const [captureSize, setCaptureSize] = useState<{
+    key: string;
+    width: number;
+    height: number;
+  } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const gridRef = useRef<HTMLElement>(null);
   useFollowPage(panelRef, 64);
@@ -656,6 +663,9 @@ export function App() {
       version={version}
     />
   );
+  const captureKey = `${project.id}/${version}/${selected.id}`;
+  const frameSize =
+    captureSize?.key === captureKey ? captureSize : selected.viewport;
   const canvas = (
     <section
       className="review-canvas"
@@ -710,8 +720,8 @@ export function App() {
         }}
         style={
           {
-            "--screen-ratio": `${selected.viewport.width} / ${selected.viewport.height}`,
-            "--screen-width": `${selected.viewport.width}px`,
+            "--screen-ratio": `${frameSize.width} / ${frameSize.height}`,
+            "--screen-width": `${frameSize.width}px`,
           } as CSSProperties
         }
       >
@@ -720,8 +730,18 @@ export function App() {
             alt={`${selected.title} capture`}
             className="screen-capture"
             draggable={false}
-            key={`${project.id}/${version}/${selected.id}`}
+            key={captureKey}
             onError={() => setCaptureFailed(true)}
+            onLoad={(event) => {
+              const { naturalWidth, naturalHeight } = event.currentTarget;
+              if (naturalWidth && naturalHeight) {
+                setCaptureSize({
+                  key: captureKey,
+                  width: naturalWidth,
+                  height: naturalHeight,
+                });
+              }
+            }}
             src={captureUrl(project.id, version, selected.id)}
           />
         ) : (

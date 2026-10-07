@@ -1,0 +1,155 @@
+# ScreenCheck roadmap
+
+October 2026. A stack-ranked feature list, grounded in a scan of 30+ comparable
+products (sources at the end).
+
+## Where ScreenCheck stands
+
+**Thesis:** the review surface you and your coding agent share, on your own
+machine. A persistent, versioned inventory of an app's screens; numbered pins
+with status, priority and approval; and an agent that reads the feedback and
+answers each comment.
+
+**What the market looks like in 2026**
+
+| Cluster                                                                          | What they own                                                                           | What they lack                                                                                  |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| Bug-annotation SaaS (Marker.io, BugHerd, Jam, Userback, Usersnap, Gleap, Pastel) | Pins on live pages, console/network capture, session replay, Jira sync, guest reviewers | Local-first; versioned screen inventory; per-seat pricing ($39 to $999/mo) is the top complaint |
+| Visual regression (Chromatic, Percy, Argos, Applitools)                          | Pixel diffs between builds, approve/deny gates in CI                                    | Human commenting. They are merge gates for engineers, not review surfaces                       |
+| Preview comments (Vercel Toolbar, Netlify)                                       | Comments on preview deploys; Vercel added a `vercel comments` CLI in Aug 2026           | Works only on their hosting; no screen inventory, no versions                                   |
+| Design handoff (Figma Dev Mode, Zeplin)                                          | Design-side comments, an MCP server for agents                                          | No formal review state; comments get buried; it reviews the design, not the build               |
+| Agent-native annotators (Pinpoint, Vibe Annotations, stagewise, React Grab)      | Local, free, pipe annotations or the selected element straight into Claude Code/Cursor  | Ad-hoc, one session at a time: no inventory, no status over time, no approvals, no versions     |
+
+**The whitespace ScreenCheck already sits in:** nobody combines (1) a persistent,
+versioned screen inventory, (2) numbered pins with status, priority and approval,
+(3) per-comment agent replies, and (4) local-only data with no accounts. Pinpoint
+is the closest open-source analogue and lacks 1–3. Marker.io's MCP server is the
+closest commercial analogue and is cloud SaaS.
+
+**Where it is exposed:**
+
+- **No MCP server.** Every peer shipped one in 2025–26, so it is now table stakes.
+- **Onboarding means hand-writing project JSON** and writing your own capture
+  script.
+- **Pins are pixels, not code.** The agent still has to work out which element
+  and which file a pin means. The "agent playing detective" problem is what
+  stagewise, React Grab and Cursor Design Mode exist to solve.
+- **No version-to-version view**, even though versions are the core data model.
+- **"Fixed" is the agent's word against nobody's.** Nothing shows the reviewer
+  the before and after, and there is no way to verify a fix.
+
+## Ranking method
+
+Each item is scored on four things:
+
+- **Loop impact:** does it shorten review → agent fix → verified?
+- **Differentiation:** does it widen the gap with SaaS tools and ad-hoc annotators?
+- **Reach:** does it bring in new users or keep existing ones?
+- **Effort:** S is a day or two, M about a week, L several weeks. Estimates assume agent-assisted work.
+
+Ties go to whatever unblocks later items.
+
+## Stack-ranked features
+
+### Now: close the agent loop
+
+| #   | Feature                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Why it ranks here                                                                                                                                                                                     | Effort |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 1   | **MCP server.** Tools: `list_feedback` (filters for project, version, status and tag), `get_comment` (note, tags, pin and **a crop of the capture around the pin**), `reply` (note plus status), `list_screens`, `approve_status`. A thin layer over the existing HTTP API, run with stdio transport through `npx screencheck mcp`. Keeps the loopback Origin and Host rules.                                                                                                                | Every peer (Marker.io, Jam, Figma, Vibe Annotations, Chrome DevTools) converged on MCP. Today agents need `reply.mjs` plus a port number. Highest leverage per hour.                                  | S–M    |
+| 2   | **Element map at capture time.** `captureFullPage` also writes `<capture>.elements.json`. For each visible element it records the box (as % of the capture), role, text, `data-testid` and selector, plus the source file and line when the build exposes them (React dev `_debugSource`, Vite/Next source maps, `data-source` attributes). A pin then resolves to its innermost element. The MCP response and the Markdown export say "the `Continue` button, `src/booking/Footer.tsx:42`". | Solves the #1 friction in agent-era tools ("which file is this?") **without a browser extension**, and it works on old captures too. Nobody else attaches source mapping to a _versioned screenshot_. | M      |
+| 3   | **Verify step.** A new `Verified` status, set only by a person, sits after `Fixed`. Fixed comments show the agent's reply with **Verify** and **Reopen** buttons. Reopening keeps the thread. A screen can't be approved while any of its comments is fixed but not yet verified, unless you override.                                                                                                                                                                                       | Turns "the agent says it's fixed" into a closed loop. It's small, and the trust problem it fixes is the main weakness of autonomous fixes.                                                            | S      |
+| 4   | **Threads instead of one reply.** A comment holds an ordered list of messages (reviewer ↔ agent), each with author, time and an optional status change. The current `reply` field migrates to the first message.                                                                                                                                                                                                                                                                             | "Won't fix, because X" needs an answer. Reopen (#3) needs a place for the reason. Every SaaS peer has threads.                                                                                        | S–M    |
+| 5   | **`npx screencheck` package.** Publish to npm: `screencheck serve`, `screencheck mcp`, `screencheck reply`, `screencheck capture`. Data stays in `~/.screencheck`.                                                                                                                                                                                                                                                                                                                           | Prerequisite for #1, #6 and outside adoption. Today you clone the repo.                                                                                                                               | S      |
+
+### Next: versions become the product
+
+| #   | Feature                                                                                                                                                                                                                                                                                                                                                                                              | Why it ranks here                                                                                                                                      | Effort         |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- |
+| 6   | **`screencheck capture`: one-command capture and registration.** Takes a `screencheck.config.ts` that lists screens as a URL plus optional Playwright setup steps (log in, click to step 3, fill a form) and a caption. It captures every screen with `captureFullPage` into a new version folder and writes or updates the project registration. Supports `--screen` to re-capture a single screen. | Removes hand-written JSON and bespoke scripts, the biggest onboarding wall. Makes versions cheap, which #7–#9 depend on.                               | M              |
+| 7   | **Compare versions.** Shows a screen in two versions side by side, as an overlay (onion skin or slider) or as a pixel diff. Each screen in the index gets a "changed" dot.                                                                                                                                                                                                                           | Visual diffs are siloed in CI tools ($100–600/mo) that have no human review. Putting them inside the review surface is the clearest gap in the market. | M              |
+| 8   | **Carry open pins forward.** When a new version lands, open comments move to it. Each pin is re-anchored by its element-map match (#2), falling back to its % position. Pins whose element vanished or moved are flagged "check placement".                                                                                                                                                          | Without this, every new build resets the review. With it, a version is just the latest state of a long-running review.                                 | M              |
+| 9   | **Before/after on every fix.** An agent's `reply --status fixed` can trigger `capture --screen` for that screen. The verify card (#3) then shows crops of the old and new capture around the pin, side by side.                                                                                                                                                                                      | Makes verification a 2-second glance. Combines #3, #6 and #7 into the signature ScreenCheck moment.                                                    | S (after 6, 7) |
+| 10  | **Review rounds and release gate.** A version header shows N screens, N approved, open comments by priority, and what changed since the last round. `screencheck status --gate` exits non-zero while P0s are open or screens are unapproved, so it works in CI and pre-release scripts.                                                                                                              | Gives approval a purpose beyond the checkmark and makes ScreenCheck a release step, not a side tool.                                                   | S–M            |
+
+### Later: broaden who reviews and what is captured
+
+| #   | Feature                                                                                                                                                                                                                                                                                           | Why                                                                                                                                                     | Effort |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+| 11  | **Box and region pins.** Drag to draw a rectangle as well as clicking a point. The box is stored as % so it works at any size (compatible with Pinpoint's schema). Optional arrow.                                                                                                                | "This whole card" is common feedback. Boxes also make the element-map match and the crops more accurate.                                                | S      |
+| 12  | **Viewports per screen.** Each screen can be captured at several widths (for example 390 / 768 / 1440), with a viewport switcher in the toolbar and pins scoped to a viewport.                                                                                                                    | Responsive review is a top use case. The data model already has `viewport`.                                                                             | M      |
+| 13  | **Offline review bundles.** `screencheck bundle` builds a `.screencheck.zip` holding captures, feedback and a static read-only viewer. `screencheck import` merges a reviewer's comments back in, using the existing import endpoint.                                                             | Lets a PM or designer review without running anything and keeps the no-accounts promise. This is how Pinpoint does hand-off.                            | M      |
+| 14  | **AI assist through CopilotBridge.** Optional and off by default. Spots duplicate comments, rewrites a vague note into an instruction an agent can act on, suggests a tag and priority, and summarises a round. It uses the reviewer's own Copilot entitlement, so there are no keys and no bill. | Gleap and Usersnap charge for this. ScreenCheck can do it for free and locally. It ranks below the loop work because the agent already does most of it. | M      |
+| 15  | **GitHub Issues sync.** `screencheck issues` creates one issue per comment or per screen through `gh`, with the crop attached and a link back. When the issue closes, the comment moves to Fixed.                                                                                                 | Two-way tracker sync is a recurring wish across Marker.io and BugHerd. GitHub comes first; Linear and Jira only if asked.                               | M      |
+| 16  | **Automated checks become suggested comments.** At capture time, run axe accessibility rules and contrast checks. Violations appear as ghost pins (dashed, labelled "Suggested") that you can promote to real comments or dismiss.                                                                | Turns the capture pipeline into a reviewer's assistant. Promoting a suggestion stays a human decision.                                                  | M      |
+| 17  | **Design reference beside the build.** Attach a Figma frame (via the Figma MCP or an exported PNG) to a screen and show it in compare mode (#7) as "Design".                                                                                                                                      | Design-vs-build review is the job Figma comments can't do.                                                                                              | M      |
+| 18  | **Reviewer identity without accounts.** A name per browser, stored locally and stamped on comments and messages, with `@agent` and `@name` mentions inside threads.                                                                                                                               | Needed once more than one person reviews (#13). Costs nothing to the privacy model.                                                                     | S      |
+
+### Explicitly not doing
+
+Each of these is either owned by someone else or would break the thesis.
+
+- **Cloud hosting and accounts.** Local-first is the moat against every SaaS peer.
+  Sharing goes through bundles (#13), not a server.
+- **Session replay and console/network capture.** Jam and Marker.io do this well,
+  and it belongs to bug reporting, not screen review.
+- **WYSIWYG editing of the app.** Onlook, Bolt and Lovable own this. ScreenCheck
+  is where you decide _what_ should change, and the agent changes it.
+- **Pinning on the live page as the primary mode.** Captures are what make
+  versions, compare and carry-forward possible. Live pages stay a capture
+  source (#6), not the review surface.
+- **LAN or remote access to the server.** It would undo the loopback-only
+  security model. Use bundles instead.
+
+## Sequencing
+
+```
+#5 npm package ──► #1 MCP ──► #3 Verify ──► #4 Threads
+                     │
+#2 Element map ──────┴──► #8 Carry forward
+#6 capture CLI ──► #7 Compare ──► #9 Before/after ──► #10 Gate
+```
+
+The first milestone, "the agent loop is closed", covers #5, #1, #2 and #3. It is
+done when an agent can be told "fix the open P0s on build-43" and the reviewer
+verifies each fix in one click, all through MCP, with no port numbers.
+
+Success measures:
+
+- time from capture to the first comment;
+- the share of comments with a resolved source file;
+- the median time from Fixed to Verified;
+- the number of comments reopened after Fixed, which shows agent fix quality.
+
+## Housekeeping before the milestone
+
+- Fix the failing `tests/screen-caption.test.tsx` "Escape cancels without saving".
+- Move `scripts/reply.mjs` into the CLI and keep a shim for the old path.
+- Version the on-disk schema (`feedback.json` gets a `schemaVersion`) before
+  threads (#4) and carried pins (#8) change its shape.
+
+## Sources
+
+- Marker.io MCP: https://marker.io/marker-mcp ·
+  https://marker.io/blog/mcp-server-auto-resolve-issues · pricing
+  https://marker.io/pricing · reviews https://www.g2.com/products/marker-io/reviews
+- Jam MCP: https://www.remote-mcp.com/servers/jam
+- Gleap pricing and AI: https://www.gleap.ai/blog/gleap-pricing-explained
+- BugHerd vs Usersnap: https://www.g2.com/compare/bugherd-vs-usersnap
+- Vercel Comments and CLI (Aug 2026): https://vercel.com/docs/comments ·
+  https://whatsnew.fyi/product/vercel/releases/2026-08-20-manage-vercel-toolbar-comments-from-the-cli
+- Figma MCP: https://help.figma.com/hc/en-us/articles/39216419318551 ·
+  Dev Mode critique https://robotostudio.com/blog/actually-using-figma-dev-mode-is-it-any-good
+- Pinpoint: https://github.com/maferland/pinpoint
+- Vibe Annotations: https://www.vibe-annotations.com/
+- stagewise: https://github.com/stagewise-io/stagewise
+- React Grab / Agentation: https://github.com/aidenybai/react-grab ·
+  https://www.agentation.com/
+- Onlook: https://github.com/onlook-dev/onlook
+- Bolt Visual Edits: https://bolt.new/blog/visual-edits
+- Cursor Design Mode: https://cursor.com/docs/agent/design-mode
+- Chrome DevTools MCP: https://developer.chrome.com/blog/chrome-devtools-mcp
+- Visual regression pricing: https://argos-ci.com/blog/percy-vs-chromatic-vs-argos ·
+  https://argos-ci.com/blog/visual-testing-pricing
+
+Unverified and treated as indicative only: Windsurf "Send Element" internals,
+Lost Pixel's maintenance status, Netlify comment-CLI parity.

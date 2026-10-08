@@ -13,13 +13,14 @@ import {
   FEEDBACK_STATUSES,
   STATUS_LABELS,
   PRIORITY_TAGS,
+  feedbackThread,
   migrateLegacyTags,
   normalizeTags,
   normalizedCoordinateSchema,
   priorityTag,
   type CreateFeedbackInput,
+  type FeedbackMessage,
   type FeedbackRecord,
-  type FeedbackReply,
   type FeedbackStatus,
   type UpdateFeedbackInput,
 } from "../../shared/feedback";
@@ -160,15 +161,31 @@ const REPLY_TIME = new Intl.DateTimeFormat(undefined, {
   minute: "2-digit",
 });
 
-// The fixer's answer to a comment, shown on its card and in the editor.
-function ReplyNote({ reply }: { reply: FeedbackReply }) {
+// One message in a comment's thread: the agent's reply or the reviewer's
+// answer, with the status change it made. Cards show the latest one; the
+// editor shows them all.
+function MessageNote({ message }: { message: FeedbackMessage }) {
+  const label = message.role === "agent" ? "Reply" : "Reviewer";
   return (
-    <span className="feedback-reply" data-testid="feedback-reply">
+    <span
+      className={`feedback-reply role-${message.role}`}
+      data-testid="feedback-reply"
+    >
       <span className="feedback-reply-meta">
-        Reply · {reply.author} ·{" "}
-        <time dateTime={reply.at}>{REPLY_TIME.format(new Date(reply.at))}</time>
+        {label}
+        {message.author === label ? "" : ` · ${message.author}`} ·{" "}
+        <time dateTime={message.at}>
+          {REPLY_TIME.format(new Date(message.at))}
+        </time>
+        {message.status ? (
+          <span
+            className={`feedback-status-chip status-${message.status.toLowerCase()}`}
+          >
+            {STATUS_LABELS[message.status]}
+          </span>
+        ) : null}
       </span>
-      <span className="feedback-reply-note">{reply.note}</span>
+      <span className="feedback-reply-note">{message.note}</span>
     </span>
   );
 }
@@ -178,6 +195,7 @@ export function pinDotClassName(item: FeedbackRecord, selected: boolean) {
     "pin-dot",
     `priority-${(priorityTag(item.tags) ?? "none").toLowerCase()}`,
     item.status === "RESOLVED" ? "is-fixed" : "",
+    item.status === "VERIFIED" ? "is-verified" : "",
     item.status === "WONT_FIX" ? "is-closed" : "",
     selected ? "is-selected" : "",
   ]
@@ -267,6 +285,14 @@ export function FeedbackInspector({
   });
   const [tagDraft, setTagDraft] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
+  // Verify / Reopen on a collapsed Fixed card. Reopening asks why first.
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
+  const [reopenDraft, setReopenDraft] = useState("");
+  const [cardMessage, setCardMessage] = useState<{
+    id: string;
+    text: string;
+  } | null>(null);
+  const [confirmingApproval, setConfirmingApproval] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<string | null>(
     null,
@@ -329,6 +355,12 @@ export function FeedbackInspector({
     setDeleteMessage("");
     setReplyDraft("");
   }, [selectedFeedbackId]);
+
+  useEffect(() => {
+    setConfirmingApproval(false);
+    setReopeningId(null);
+    setCardMessage(null);
+  }, [selectedScreenId, version]);
 
   useEffect(() => {
     onVisibleFeedbackChange?.(visibleFeedback);
@@ -569,9 +601,9 @@ export function FeedbackInspector({
     const record = latestRecordRef.current;
     if (!record || status === record.status) return;
     const closesFeedback = status === "RESOLVED" || status === "WONT_FIX";
-    const replyNote = replyDraft.trim() || record.reply?.note;
+    const replyNote = replyDraft.trim();
     if (closesFeedback && !replyNote) {
-      setSaveMessage("Add a change summary before closing this feedback.");
+      setSaveMessage("Add a reply before closing this feedback.");
       return;
     }
     if (timerRef.current) {
@@ -584,12 +616,13 @@ export function FeedbackInspector({
         expectedUpdatedAt: record.updatedAt,
         patch: {
           status,
-          ...(closesFeedback
-            ? { reply: { note: replyNote!, author: "Agent" } }
+          ...(replyNote
+            ? { message: { note: replyNote, role: "reviewer" as const } }
             : {}),
         },
       });
       latestRecordRef.current = updated;
+      if (replyNote) setReplyDraft("");
       setSaveMessage("Saved");
       if (
         editor.note !== updated.note ||
@@ -610,14 +643,139 @@ export function FeedbackInspector({
     const status = event.target.value as FeedbackStatus;
     if (
       (status === "RESOLVED" || status === "WONT_FIX") &&
-      !replyDraft.trim() &&
-      !latestRecordRef.current?.reply
+      !replyDraft.trim()
     ) {
-      setSaveMessage("Add a change summary before closing this feedback.");
+      setSaveMessage("Add a reply before closing this feedback.");
       return;
     }
     setEditor((current) => ({ ...current, status }));
     void flushStatus(status);
+  }
+
+  // The reviewer's answer in the thread, without changing the status.
+  async function sendReply() {
+    const record = latestRecordRef.current;
+    const note = replyDraft.trim();
+    if (!record || !note) return;
+    setSaveMessage("Saving…");
+    try {
+      const updated = await onUpdate(record.id, {
+        expectedUpdatedAt: record.updatedAt,
+        patch: { message: { note, role: "reviewer" } },
+      });
+      latestRecordRef.current = updated;
+      setReplyDraft("");
+      setSaveMessage("Saved");
+    } catch (error) {
+      setSaveMessage(
+        error instanceof Error
+          ? `Retry required: ${error.message}`
+          : "Retry required",
+      );
+    }
+  }
+
+  async function updateCard(
+    item: FeedbackRecord,
+    patch: UpdateFeedbackInput["patch"],
+  ) {
+    setCardMessage({ id: item.id, text: "Saving…" });
+    try {
+      await onUpdate(item.id, { expectedUpdatedAt: item.updatedAt, patch });
+      setCardMessage(null);
+      setReopeningId(null);
+      setReopenDraft("");
+    } catch (error) {
+      setCardMessage({
+        id: item.id,
+        text:
+          error instanceof Error
+            ? `Retry required: ${error.message}`
+            : "Retry required",
+      });
+    }
+  }
+
+  function verifyActions(item: FeedbackRecord) {
+    const pin = pinNumbers.get(item.id) ?? 0;
+    const reopening = reopeningId === item.id;
+    return (
+      <div
+        aria-label={`Check the fix for pin ${pin}`}
+        className="feedback-verify"
+        role="group"
+      >
+        {reopening ? (
+          <label>
+            Why reopen?
+            <textarea
+              aria-label={`Why reopen pin ${pin}?`}
+              autoFocus
+              onChange={(event) => setReopenDraft(event.target.value)}
+              placeholder="What still needs to change?"
+              value={reopenDraft}
+            />
+          </label>
+        ) : null}
+        <div className="feedback-verify-buttons">
+          {reopening ? (
+            <>
+              <button
+                className="feedback-reopen-confirm"
+                onClick={() => {
+                  const note = reopenDraft.trim();
+                  void updateCard(item, {
+                    status: "OPEN",
+                    ...(note
+                      ? { message: { note, role: "reviewer" as const } }
+                      : {}),
+                  });
+                }}
+                type="button"
+              >
+                Reopen
+              </button>
+              <button
+                onClick={() => {
+                  setReopeningId(null);
+                  setCardMessage(null);
+                }}
+                type="button"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                aria-label={`Verify pin ${pin}`}
+                className="feedback-verify-button"
+                onClick={() => void updateCard(item, { status: "VERIFIED" })}
+                type="button"
+              >
+                Verify
+              </button>
+              <button
+                aria-label={`Reopen pin ${pin}`}
+                onClick={() => {
+                  setReopenDraft("");
+                  setCardMessage(null);
+                  setReopeningId(item.id);
+                }}
+                type="button"
+              >
+                Reopen
+              </button>
+            </>
+          )}
+        </div>
+        {cardMessage?.id === item.id ? (
+          <span aria-live="polite" className="feedback-verify-state">
+            {cardMessage.text}
+          </span>
+        ) : null}
+      </div>
+    );
   }
 
   function togglePriority(priority: string) {
@@ -794,6 +952,7 @@ export function FeedbackInspector({
       );
     }
     const otherTags = item.tags.filter((tag) => !isPriority(tag));
+    const latest = feedbackThread(item).at(-1);
     return (
       <li key={item.id}>
         <button
@@ -823,8 +982,9 @@ export function FeedbackInspector({
               ))}
             </span>
           ) : null}
-          {item.reply ? <ReplyNote reply={item.reply} /> : null}
+          {latest ? <MessageNote message={latest} /> : null}
         </button>
+        {item.status === "RESOLVED" ? verifyActions(item) : null}
         {deleteButton(item)}
         {deleteConfirm(item)}
       </li>
@@ -835,6 +995,11 @@ export function FeedbackInspector({
   // never appears twice (once as a saved card and again in the editor).
   const editingRecord = effectiveDraftPin ? null : visibleSelectedRecord;
   const freshRecord = Boolean(editingRecord && editingRecord.id === freshId);
+  const editingThread = editingRecord ? feedbackThread(editingRecord) : [];
+  // Fixed but not yet looked at: approving over them takes a second click.
+  const unverifiedFixes = visibleFeedback.filter(
+    (item) => item.status === "RESOLVED",
+  ).length;
   const slotKey = effectiveDraftPin ? "draft" : (editingRecord?.id ?? null);
   if ((heldSlot?.key ?? null) !== slotKey) {
     if (!slotKey) {
@@ -898,17 +1063,35 @@ export function FeedbackInspector({
           value={editor.note}
         />
       </label>
-      {editingRecord?.reply ? <ReplyNote reply={editingRecord.reply} /> : null}
+      {editingThread.length ? (
+        <ol aria-label="Thread" className="feedback-thread">
+          {editingThread.map((message) => (
+            <li key={message.id}>
+              <MessageNote message={message} />
+            </li>
+          ))}
+        </ol>
+      ) : null}
       {editingRecord && !freshRecord ? (
-        <label>
-          Change summary
-          <textarea
-            aria-label="Change summary"
-            onChange={(event) => setReplyDraft(event.target.value)}
-            placeholder="Describe the change made before marking this fixed."
-            value={replyDraft}
-          />
-        </label>
+        <div className="feedback-reply-compose">
+          <label>
+            Reply
+            <textarea
+              aria-label="Reply"
+              onChange={(event) => setReplyDraft(event.target.value)}
+              placeholder="Answer the agent, or say why the status changes."
+              value={replyDraft}
+            />
+          </label>
+          <button
+            className="feedback-reply-send"
+            disabled={!replyDraft.trim()}
+            onClick={() => void sendReply()}
+            type="button"
+          >
+            Reply
+          </button>
+        </div>
       ) : null}
       <fieldset className="feedback-tags">
         <legend>Tags</legend>
@@ -1120,19 +1303,56 @@ export function FeedbackInspector({
 
       {approval ? (
         <div className="screen-approval">
-          <button
-            aria-pressed={approval.approved}
-            className="screen-approval-toggle"
-            disabled={!approval.ready}
-            onClick={approval.onToggle}
-            title={approval.approved ? "Click to unapprove" : undefined}
-            type="button"
-          >
-            <span aria-hidden="true" className="screen-approval-box">
-              {approval.approved ? "✓" : ""}
-            </span>
-            {approval.approved ? "Screen approved" : "Approve screen"}
-          </button>
+          {confirmingApproval && !approval.approved && unverifiedFixes > 0 ? (
+            <div
+              aria-label="Confirm approval"
+              className="screen-approval-confirm"
+              role="group"
+            >
+              <span>
+                {unverifiedFixes} fix{unverifiedFixes === 1 ? "" : "es"} not
+                verified. Approve anyway?
+              </span>
+              <button
+                className="screen-approval-anyway"
+                onClick={() => {
+                  setConfirmingApproval(false);
+                  approval.onToggle();
+                }}
+                type="button"
+              >
+                Approve
+              </button>
+              <button
+                autoFocus
+                onClick={() => setConfirmingApproval(false)}
+                type="button"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <button
+              aria-pressed={approval.approved}
+              className="screen-approval-toggle"
+              // Wait for feedback too, so unverified fixes are counted.
+              disabled={!approval.ready || !ready}
+              onClick={() => {
+                if (!approval.approved && unverifiedFixes > 0) {
+                  setConfirmingApproval(true);
+                } else {
+                  approval.onToggle();
+                }
+              }}
+              title={approval.approved ? "Click to unapprove" : undefined}
+              type="button"
+            >
+              <span aria-hidden="true" className="screen-approval-box">
+                {approval.approved ? "✓" : ""}
+              </span>
+              {approval.approved ? "Screen approved" : "Approve screen"}
+            </button>
+          )}
         </div>
       ) : null}
     </aside>

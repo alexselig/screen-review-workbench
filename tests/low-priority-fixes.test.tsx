@@ -247,7 +247,7 @@ describe("serialized client writes", () => {
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 600));
     });
-    fireEvent.change(screen.getByRole("textbox", { name: "Change summary" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Reply" }), {
       target: { value: "Completed the requested edit." },
     });
     fireEvent.change(status, { target: { value: "RESOLVED" } });
@@ -269,7 +269,7 @@ describe("serialized client writes", () => {
       patch: { note: "Changed in another tab" },
     });
 
-    fireEvent.change(screen.getByRole("textbox", { name: "Change summary" }), {
+    fireEvent.change(screen.getByRole("textbox", { name: "Reply" }), {
       target: { value: "Completed the requested edit." },
     });
     fireEvent.change(status, { target: { value: "RESOLVED" } });

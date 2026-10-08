@@ -132,19 +132,55 @@ type LoadState =
 
 const HIDDEN_PINS_KEY = "screencheck:hidden-pin-statuses";
 
-// Fixed pins are hidden until the reviewer asks to see them.
+// Fixed and Verified pins are hidden until the reviewer asks to see them.
+const DEFAULT_HIDDEN_PINS: FeedbackStatus[] = ["RESOLVED", "VERIFIED"];
+// Statuses that existed when the choice was saved as a bare list.
+const LEGACY_KNOWN_STATUSES: FeedbackStatus[] = [
+  "OPEN",
+  "IN_PROGRESS",
+  "RESOLVED",
+  "WONT_FIX",
+];
+
+// Saved as {hidden, known}; a status added since the choice was saved (not in
+// `known`) takes its default, so a new Verified section starts hidden.
 export function readHiddenPinStatuses(): FeedbackStatus[] {
   try {
     const raw = window.localStorage.getItem(HIDDEN_PINS_KEY);
-    if (raw === null) return ["RESOLVED"];
+    if (raw === null) return [...DEFAULT_HIDDEN_PINS];
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return ["RESOLVED"];
-    return parsed.filter((value): value is FeedbackStatus =>
-      (FEEDBACK_STATUSES as readonly unknown[]).includes(value),
+    let hidden: unknown[];
+    let known: unknown[];
+    if (Array.isArray(parsed)) {
+      hidden = parsed;
+      known = LEGACY_KNOWN_STATUSES;
+    } else if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "hidden" in parsed &&
+      Array.isArray(parsed.hidden)
+    ) {
+      hidden = parsed.hidden;
+      known =
+        "known" in parsed && Array.isArray(parsed.known) ? parsed.known : [];
+    } else {
+      return [...DEFAULT_HIDDEN_PINS];
+    }
+    return FEEDBACK_STATUSES.filter((status) =>
+      known.includes(status)
+        ? hidden.includes(status)
+        : DEFAULT_HIDDEN_PINS.includes(status),
     );
   } catch {
-    return ["RESOLVED"];
+    return [...DEFAULT_HIDDEN_PINS];
   }
+}
+
+function writeHiddenPinStatuses(hidden: FeedbackStatus[]) {
+  window.localStorage.setItem(
+    HIDDEN_PINS_KEY,
+    JSON.stringify({ hidden, known: FEEDBACK_STATUSES }),
+  );
 }
 
 export function App() {
@@ -444,7 +480,7 @@ export function App() {
         ? current.filter((value) => value !== status)
         : [...current, status];
       try {
-        window.localStorage.setItem(HIDDEN_PINS_KEY, JSON.stringify(next));
+        writeHiddenPinStatuses(next);
       } catch {
         // Storage can be unavailable; the choice still lasts this session.
       }
@@ -772,7 +808,7 @@ export function App() {
             .map((item) => (
               <button
                 aria-controls={`feedback-comment-${item.id}`}
-                aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}${item.status === "RESOLVED" ? " (fixed)" : ""}: ${item.note}`}
+                aria-label={`Pin ${pinNumbers.get(item.id) ?? 0}${item.status === "RESOLVED" ? " (fixed)" : item.status === "VERIFIED" ? " (verified)" : ""}: ${item.note}`}
                 aria-pressed={item.id === selectedFeedbackId}
                 className={`feedback-pin ${pinDotClassName(item, item.id === selectedFeedbackId)}`}
                 data-testid="feedback-pin"

@@ -139,7 +139,7 @@ describe("FeedbackInspector", () => {
     });
   });
 
-  it("requires and saves a change summary when marking feedback fixed", async () => {
+  it("requires a reply and saves it to the thread when marking feedback fixed", async () => {
     const onUpdate = vi.fn(async (id: string, input: UpdateFeedbackInput) =>
       feedback({
         id,
@@ -149,12 +149,9 @@ describe("FeedbackInspector", () => {
     );
     renderInspector({ onUpdate });
 
-    fireEvent.change(
-      screen.getByRole("textbox", { name: "Change summary" }),
-      {
-        target: { value: "Aligned the illustration with the sign-in button." },
-      },
-    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Reply" }), {
+      target: { value: "Aligned the illustration with the sign-in button." },
+    });
     fireEvent.change(
       screen.getByRole("combobox", { name: "Feedback status" }),
       {
@@ -167,9 +164,9 @@ describe("FeedbackInspector", () => {
       expectedUpdatedAt: "2026-10-05T20:00:00.000Z",
       patch: {
         status: "RESOLVED",
-        reply: {
+        message: {
           note: "Aligned the illustration with the sign-in button.",
-          author: "Agent",
+          role: "reviewer",
         },
       },
     });

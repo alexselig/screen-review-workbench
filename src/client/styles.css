@@ -1455,6 +1455,146 @@ button.tag-chip:hover {
   overflow-wrap: anywhere;
 }
 
+.feedback-reply.role-reviewer {
+  border-top-color: var(--line-strong);
+  background: var(--surface);
+}
+
+/* The status change a message made, beside its author and time. */
+.feedback-status-chip {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.06em;
+}
+
+.feedback-status-chip.status-resolved {
+  color: var(--fixed-teal);
+}
+
+.feedback-status-chip.status-verified {
+  border-color: var(--fixed-teal);
+  background: var(--fixed-teal);
+  color: var(--on-teal);
+}
+
+/* The whole thread in the editor, oldest first. */
+.feedback-thread {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+  list-style: none;
+}
+
+.feedback-reply-compose {
+  display: grid;
+  gap: 6px;
+}
+
+.feedback-editor .feedback-reply-compose textarea {
+  min-height: 64px;
+}
+
+.feedback-reply-send {
+  justify-self: end;
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.feedback-reply-send:hover:not(:disabled) {
+  background: var(--surface-alt);
+}
+
+.feedback-reply-send:disabled {
+  border-color: var(--line-strong);
+  color: var(--ink-muted);
+  cursor: not-allowed;
+}
+
+/* Verify / Reopen hang under a Fixed card, inside the same frame. */
+.feedback-verify {
+  display: grid;
+  gap: 8px;
+  padding: 8px 12px 10px 54px;
+  border: 1px solid var(--line);
+  border-top: 0;
+  background: var(--surface);
+}
+
+.feedback-verify label {
+  display: grid;
+  gap: 5px;
+  color: var(--ink-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.feedback-verify textarea {
+  width: 100%;
+  min-height: 64px;
+  padding: 8px;
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.45;
+  text-transform: none;
+  resize: vertical;
+}
+
+.feedback-verify-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.feedback-verify-buttons button {
+  min-height: 32px;
+  padding: 0 14px;
+  border: 1px solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.feedback-verify-buttons button:hover {
+  background: var(--surface-alt);
+}
+
+.feedback-verify-buttons .feedback-verify-button {
+  border-color: var(--fixed-teal);
+  background: var(--fixed-teal);
+  color: var(--on-teal);
+}
+
+.feedback-verify-buttons .feedback-verify-button:hover {
+  background: var(--fixed-teal);
+  filter: brightness(0.92);
+}
+
+.feedback-verify-state {
+  color: var(--ink-muted);
+  font-size: 12px;
+}
+
 /* Status sections (Backlog, In progress, ...) each hold P0-P2 groups. */
 .feedback-section {
   display: grid;
@@ -1560,6 +1700,7 @@ button.tag-chip:hover {
 }
 
 .feedback-section.status-resolved .feedback-comment strong,
+.feedback-section.status-verified .feedback-comment strong,
 .feedback-section.status-wont_fix .feedback-comment strong {
   color: var(--ink-muted);
 }
@@ -1654,6 +1795,36 @@ button.tag-chip:hover {
   border-radius: 50%;
   background: var(--surface);
   color: var(--fixed-teal);
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Verified: same teal, but the badge is solid, so a glance tells a fix the
+   reviewer has checked from one only the agent vouches for. */
+.pin-dot.is-verified {
+  background: var(--fixed-teal);
+  color: var(--on-teal);
+}
+
+.pin-dot.is-verified:not(.feedback-pin) {
+  position: relative;
+}
+
+.pin-dot.is-verified::after {
+  content: "✓";
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border: 1.5px solid var(--surface);
+  border-radius: 50%;
+  background: var(--fixed-teal);
+  outline: 1px solid var(--fixed-teal);
+  color: var(--on-teal);
   font-size: 9px;
   font-weight: 700;
   line-height: 1;
@@ -1956,4 +2127,40 @@ button.tag-chip:hover {
   border: 1px solid currentColor;
   font-size: 12px;
   line-height: 1;
+}
+
+/* Approving over unverified fixes asks once, in the toggle's own footprint. */
+.screen-approval-confirm {
+  display: flex;
+  height: 44px;
+  align-items: center;
+  gap: 8px;
+}
+
+.screen-approval-confirm span {
+  flex: 1;
+  min-width: 0;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.screen-approval-confirm button {
+  height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--ink);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.screen-approval-confirm .screen-approval-anyway {
+  border-color: var(--fixed-teal);
+  background: var(--fixed-teal);
+  color: var(--on-teal);
 }

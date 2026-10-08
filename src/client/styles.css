@@ -1453,8 +1453,9 @@ button.tag-chip:hover {
 /* The element under a pin, from the capture's element map. */
 .feedback-element {
   display: flex;
+  flex-wrap: wrap;
   grid-column: 2;
-  gap: 4px;
+  column-gap: 4px;
   min-width: 0;
   color: var(--ink-muted);
   font-size: 12px;
@@ -1466,9 +1467,11 @@ button.tag-chip:hover {
   grid-column: auto;
 }
 
-/* The label gives way first; the source file always stays readable. */
+/* The source wraps under a long label; the label truncates only when it
+   alone is wider than the card. */
 .feedback-element-label {
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
 }

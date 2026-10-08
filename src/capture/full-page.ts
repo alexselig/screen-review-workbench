@@ -10,6 +10,16 @@
 // Usage from any Playwright script or spec:
 //   import { captureFullPage } from "screencheck/capture";
 //   await captureFullPage(page, { path: "screen.webp", type: "webp" });
+//
+// It also writes an element map beside the capture (`screen.elements.json`):
+// the visible, meaningful elements with their boxes as fractions of the
+// capture, so a pin can name what it points at.
+
+// Only type imports from the repo, so Node can run this file directly.
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+import type { ElementMap } from "../shared/elements";
 
 export type PinnedChromeReport = {
   // Bars moved for the capture, described as "tag.class" for logs.
@@ -113,20 +123,559 @@ export function restoreBottomChromeInPage() {
   delete store[key];
 }
 
+// Runs in the page after the bars are re-pinned, so boxes match the shot.
+// Must stay self-contained because Playwright serialises it.
+export function collectElementsInPage(): ElementMap {
+  const LIMIT = 2000;
+  const NAME_MAX = 120;
+  type Source = {
+    file?: string;
+    line?: number;
+    column?: number;
+    component?: string;
+  };
+  type Mapped = ElementMap["elements"][number];
+
+  const docElement = document.documentElement;
+  const scroller = document.scrollingElement ?? docElement;
+  const width = Math.max(
+    scroller.scrollWidth,
+    document.body?.scrollWidth ?? 0,
+    docElement.clientWidth,
+    1,
+  );
+  const height = Math.max(
+    scroller.scrollHeight,
+    document.body?.scrollHeight ?? 0,
+    docElement.clientHeight,
+    1,
+  );
+
+  const SKIP = new Set([
+    "script",
+    "style",
+    "noscript",
+    "template",
+    "link",
+    "meta",
+    "title",
+    "br",
+    "wbr",
+    "option",
+    "optgroup",
+    "source",
+    "track",
+  ]);
+  const INTERACTIVE =
+    "a[href], button, input:not([type=hidden]), select, textarea, summary, [tabindex], [contenteditable=''], [contenteditable=true]";
+  const LANDMARKS = new Set(["header", "nav", "main", "footer", "aside"]);
+  const IMPLICIT_ROLES: Record<string, string> = {
+    button: "button",
+    select: "combobox",
+    textarea: "textbox",
+    img: "img",
+    nav: "navigation",
+    main: "main",
+    header: "banner",
+    footer: "contentinfo",
+    aside: "complementary",
+    form: "form",
+    section: "region",
+    ul: "list",
+    ol: "list",
+    li: "listitem",
+    table: "table",
+    dialog: "dialog",
+    summary: "button",
+    h1: "heading",
+    h2: "heading",
+    h3: "heading",
+    h4: "heading",
+    h5: "heading",
+    h6: "heading",
+  };
+  const INPUT_ROLES: Record<string, string> = {
+    button: "button",
+    submit: "button",
+    reset: "button",
+    image: "button",
+    checkbox: "checkbox",
+    radio: "radio",
+    range: "slider",
+    number: "spinbutton",
+    search: "searchbox",
+  };
+  const SOURCE_ATTRIBUTES =
+    "[data-source], [data-source-file], [data-inspector-relative-path], [data-sentry-source-file], [data-sentry-component], [data-component]";
+  // Roles named by their text, as in ARIA's "name from content".
+  const NAMED_BY_CONTENT = new Set([
+    "button",
+    "link",
+    "heading",
+    "tab",
+    "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
+    "option",
+    "cell",
+    "gridcell",
+    "columnheader",
+    "rowheader",
+    "treeitem",
+    "tooltip",
+    "switch",
+    "checkbox",
+    "radio",
+  ]);
+
+  function clean(text: string | null | undefined) {
+    const value = (text ?? "").replace(/\s+/g, " ").trim();
+    return value.length > NAME_MAX ? `${value.slice(0, NAME_MAX - 1)}…` : value;
+  }
+
+  function roleOf(element: Element, tag: string) {
+    const explicit = element.getAttribute("role")?.trim().split(/\s+/)[0];
+    if (explicit) return explicit;
+    if (tag === "a") return element.hasAttribute("href") ? "link" : undefined;
+    if (tag === "input") {
+      const type = (element.getAttribute("type") ?? "text").toLowerCase();
+      return INPUT_ROLES[type] ?? "textbox";
+    }
+    if (tag === "section" || tag === "form") {
+      return element.hasAttribute("aria-label") ||
+        element.hasAttribute("aria-labelledby")
+        ? IMPLICIT_ROLES[tag]
+        : undefined;
+    }
+    return IMPLICIT_ROLES[tag];
+  }
+
+  function nameOf(element: HTMLElement, tag: string, role: string | undefined) {
+    const label = element.getAttribute("aria-label");
+    if (label?.trim()) return clean(label);
+    const labelledBy = element.getAttribute("aria-labelledby");
+    if (labelledBy) {
+      const text = labelledBy
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent ?? "")
+        .join(" ");
+      if (text.trim()) return clean(text);
+    }
+    if (tag === "img") return clean(element.getAttribute("alt"));
+    if (tag === "input" || tag === "select" || tag === "textarea") {
+      const field = element as HTMLInputElement;
+      const type = (element.getAttribute("type") ?? "").toLowerCase();
+      if (["button", "submit", "reset"].includes(type) && field.value) {
+        return clean(field.value);
+      }
+      const fieldLabel = field.labels?.[0]?.textContent;
+      return clean(
+        fieldLabel ||
+          element.getAttribute("placeholder") ||
+          element.getAttribute("title"),
+      );
+    }
+    // Containers are not named after everything inside them.
+    if ((role && NAMED_BY_CONTENT.has(role)) || hasOwnText(element)) {
+      return clean(element.innerText || element.textContent);
+    }
+    return "";
+  }
+
+  function selectorOf(element: Element) {
+    const quote = (value: string) =>
+      `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+    const testId = element.getAttribute("data-testid");
+    if (testId) return `[data-testid=${quote(testId)}]`;
+    if (
+      element.id &&
+      document.querySelectorAll(`#${CSS.escape(element.id)}`).length === 1
+    ) {
+      return `#${CSS.escape(element.id)}`;
+    }
+    const parts: string[] = [];
+    let node: Element | null = element;
+    while (node && node !== document.body && node !== docElement) {
+      if (node !== element) {
+        const anchorId = node.getAttribute("data-testid");
+        if (anchorId) {
+          parts.unshift(`[data-testid=${quote(anchorId)}]`);
+          break;
+        }
+        if (node.id) {
+          parts.unshift(`#${CSS.escape(node.id)}`);
+          break;
+        }
+      }
+      if (parts.length === 4) break;
+      const tag = node.tagName.toLowerCase();
+      const parent: Element | null = node.parentElement;
+      const same = parent
+        ? [...parent.children].filter(
+            (child) => child.tagName === node!.tagName,
+          )
+        : [];
+      parts.unshift(
+        same.length > 1 ? `${tag}:nth-of-type(${same.indexOf(node) + 1})` : tag,
+      );
+      node = parent;
+    }
+    return parts.join(" > ") || element.tagName.toLowerCase();
+  }
+
+  // Dev-server URLs become project paths: `http://host/src/A.tsx?t=1` is
+  // `src/A.tsx`, and Vite's `/@fs/abs/path` is `/abs/path`.
+  function trimFile(file: string) {
+    const url = /^[a-z][a-z0-9+.-]*:\/\/[^/]*(\/.*)$/i.exec(file);
+    if (!url) return file;
+    const pathname = url[1]!.replace(/[?#].*$/, "");
+    return file.startsWith("file:") || pathname.startsWith("/@fs/")
+      ? pathname.replace(/^\/@fs/, "")
+      : pathname.replace(/^\//, "");
+  }
+
+  function number(value: unknown) {
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed >= 0 ? parsed : undefined;
+  }
+
+  function compact(source: Source): Source | undefined {
+    const result: Source = {};
+    if (source.file) result.file = trimFile(source.file);
+    if (source.file && source.line !== undefined) result.line = source.line;
+    if (source.file && source.column !== undefined) {
+      result.column = source.column;
+    }
+    if (source.component) result.component = source.component.slice(0, 120);
+    return result.file || result.component ? result : undefined;
+  }
+
+  function fromAttributes(element: Element): Source | undefined {
+    const host = element.closest(SOURCE_ATTRIBUTES);
+    if (!host) return undefined;
+    const read = (name: string) => host.getAttribute(name) ?? undefined;
+    const component =
+      read("data-sentry-component") ??
+      read("data-component") ??
+      read("data-inspector-component") ??
+      undefined;
+    const inline = read("data-source");
+    if (inline) {
+      const match = /^(.*?)(?::(\d+))?(?::(\d+))?$/.exec(inline.trim());
+      return compact({
+        file: match?.[1] || inline,
+        line: number(match?.[2]),
+        column: number(match?.[3]),
+        component,
+      });
+    }
+    return compact({
+      file:
+        read("data-inspector-relative-path") ??
+        read("data-source-file") ??
+        read("data-sentry-source-file"),
+      line: number(read("data-inspector-line") ?? read("data-source-line")),
+      column: number(
+        read("data-inspector-column") ?? read("data-source-column"),
+      ),
+      component,
+    });
+  }
+
+  type Fiber = {
+    type?: unknown;
+    return?: Fiber | null;
+    _debugOwner?: Fiber | null;
+    _debugSource?: {
+      fileName?: string;
+      lineNumber?: number;
+      columnNumber?: number;
+    };
+    _debugStack?: { stack?: string } | string;
+  };
+
+  function componentName(type: unknown): string | undefined {
+    if (!type || typeof type === "string") return undefined;
+    const value = type as {
+      displayName?: string;
+      name?: string;
+      render?: { displayName?: string; name?: string };
+      type?: unknown;
+    };
+    return (
+      value.displayName ||
+      value.name ||
+      value.render?.displayName ||
+      value.render?.name ||
+      (value.type ? componentName(value.type) : undefined) ||
+      undefined
+    );
+  }
+
+  // First app frame of a React 19 `_debugStack`. Dev-server stacks are not
+  // source-mapped, so only the file is trusted, not the line.
+  function stackFile(stack: string | undefined) {
+    for (const line of (stack ?? "").split("\n").slice(1)) {
+      if (
+        /node_modules|\/\.vite\/|react-dom|react-stack|jsx-dev-runtime|jsx-runtime|chunk-/.test(
+          line,
+        )
+      ) {
+        continue;
+      }
+      const match = /\(?((?:[a-z]+:\/\/)?[^\s()]+?):\d+:\d+\)?\s*$/i.exec(line);
+      if (match) return match[1];
+    }
+    return undefined;
+  }
+
+  function fromReact(element: Element): Source | undefined {
+    const key = Object.keys(element).find(
+      (name) =>
+        name.startsWith("__reactFiber$") ||
+        name.startsWith("__reactInternalInstance$"),
+    );
+    if (!key) return undefined;
+    const fiber = (element as unknown as Record<string, Fiber>)[key];
+    let component = componentName(fiber?._debugOwner?.type);
+    let source = fiber?._debugSource;
+    let node: Fiber | null | undefined = fiber;
+    for (let depth = 0; node && depth < 60; depth += 1) {
+      component ??= componentName(node.type);
+      source ??= node._debugSource;
+      if (component && source) break;
+      node = node.return;
+    }
+    if (source?.fileName) {
+      return compact({
+        file: source.fileName,
+        line: number(source.lineNumber),
+        column: number(source.columnNumber),
+        component,
+      });
+    }
+    const stack = fiber?._debugStack;
+    return compact({
+      file: stackFile(typeof stack === "string" ? stack : stack?.stack),
+      component,
+    });
+  }
+
+  function fromVue(element: Element): Source | undefined {
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      const instance = (
+        node as unknown as {
+          __vueParentComponent?: {
+            type?: { __file?: string; name?: string; __name?: string };
+          };
+        }
+      ).__vueParentComponent;
+      if (instance?.type) {
+        return compact({
+          file: instance.type.__file,
+          component: instance.type.name ?? instance.type.__name,
+        });
+      }
+    }
+    return undefined;
+  }
+
+  function fromSvelte(element: Element): Source | undefined {
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      const loc = (
+        node as unknown as {
+          __svelte_meta?: {
+            loc?: { file?: string; line?: number; column?: number };
+          };
+        }
+      ).__svelte_meta?.loc;
+      if (loc?.file) {
+        return compact({
+          file: loc.file,
+          line: number(loc.line),
+          column: number(loc.column),
+        });
+      }
+    }
+    return undefined;
+  }
+
+  function sourceOf(element: Element): Source | undefined {
+    for (const read of [fromAttributes, fromReact, fromVue, fromSvelte]) {
+      try {
+        const source = read(element);
+        if (source) return source;
+      } catch {
+        // Source mapping is best effort.
+      }
+    }
+    return undefined;
+  }
+
+  function visible(element: HTMLElement) {
+    const check = (
+      element as HTMLElement & {
+        checkVisibility?: (options: object) => boolean;
+      }
+    ).checkVisibility;
+    if (check) {
+      return check.call(element, {
+        opacityProperty: true,
+        visibilityProperty: true,
+      });
+    }
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      const style = getComputedStyle(node);
+      if (style.display === "none" || style.opacity === "0") return false;
+    }
+    return getComputedStyle(element).visibility === "visible";
+  }
+
+  function hasOwnText(element: Element) {
+    for (const child of element.childNodes) {
+      if (child.nodeType === Node.TEXT_NODE && child.textContent?.trim()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const round = (value: number) =>
+    Math.min(1, Math.max(0, Math.round(value * 1e5) / 1e5));
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+  const found: { index: number; primary: boolean; element: Mapped }[] = [];
+  const all = document.body ? [...document.body.querySelectorAll("*")] : [];
+
+  all.forEach((node, index) => {
+    if (!(node instanceof HTMLElement || node instanceof SVGSVGElement)) return;
+    const tag = node.tagName.toLowerCase();
+    if (SKIP.has(tag)) return;
+    const role = roleOf(node, tag);
+    if (role === "presentation" || role === "none") return;
+    const testId = node.getAttribute("data-testid") ?? undefined;
+    const primary =
+      Boolean(testId) ||
+      node.matches(INTERACTIVE) ||
+      node.matches(SOURCE_ATTRIBUTES) ||
+      node.hasAttribute("role") ||
+      /^h[1-6]$/.test(tag) ||
+      tag === "img" ||
+      (tag === "svg" && node.hasAttribute("aria-label")) ||
+      LANDMARKS.has(tag) ||
+      ((tag === "section" || tag === "form") && role !== undefined);
+    if (!primary) {
+      if (!(node instanceof HTMLElement) || !hasOwnText(node)) return;
+      // An inline run of text counts only when its parent is not itself text.
+      const display = getComputedStyle(node).display;
+      if (display === "contents") return;
+      if (
+        display === "inline" &&
+        node.parentElement &&
+        hasOwnText(node.parentElement)
+      ) {
+        return;
+      }
+    }
+    if (node instanceof HTMLElement && !visible(node)) return;
+    const rect = node.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const left = Math.max(0, rect.left + scrollX);
+    const top = Math.max(0, rect.top + scrollY);
+    const right = Math.min(width, rect.right + scrollX);
+    const bottom = Math.min(height, rect.bottom + scrollY);
+    if (right <= left || bottom <= top) return;
+
+    const mapped: Mapped = {
+      box: {
+        x: round(left / width),
+        y: round(top / height),
+        w: round((right - left) / width),
+        h: round((bottom - top) / height),
+      },
+      tag,
+      selector: selectorOf(node),
+    };
+    if (role) mapped.role = role;
+    const name =
+      node instanceof HTMLElement
+        ? nameOf(node, tag, role)
+        : clean(node.getAttribute("aria-label"));
+    if (name) mapped.name = name;
+    if (testId) mapped.testId = testId;
+    const source = sourceOf(node);
+    if (source) mapped.source = source;
+    found.push({ index, primary, element: mapped });
+  });
+
+  // Over the cap, keep meaningful elements before plain text blocks.
+  let kept = found;
+  if (found.length > LIMIT) {
+    const primary = found.filter((item) => item.primary);
+    const text = found.filter((item) => !item.primary);
+    kept = [...primary, ...text]
+      .slice(0, LIMIT)
+      .sort((left, right) => left.index - right.index);
+  }
+
+  const map: ElementMap = {
+    version: 1,
+    capture: { width, height },
+    elements: kept.map((item) => item.element),
+  };
+  if (/^(https?|file):/.test(location.href)) map.url = location.href;
+  return map;
+}
+
 // The parts of a Playwright Page this needs, so any Playwright version works.
 export type CapturePage = {
   evaluate<R>(pageFunction: () => R): Promise<R>;
   screenshot(options?: object): Promise<Uint8Array>;
 };
 
+export type CaptureOptions = {
+  path?: string;
+  // Element map beside the capture: on by default when `path` is set, at
+  // `<path without extension>.elements.json`. `false` skips it.
+  elements?: boolean | { path?: string };
+  // Anything else goes to Playwright's `page.screenshot`.
+  [option: string]: unknown;
+};
+
+export type CaptureResult = PinnedChromeReport & {
+  image: Uint8Array;
+  elements: ElementMap | null;
+};
+
+// `shots/checkout.png` -> `shots/checkout.elements.json`.
+export function elementMapPath(capturePath: string) {
+  return `${capturePath.replace(/\.[^./\\]*$/, "")}.elements.json`;
+}
+
 export async function captureFullPage(
   page: CapturePage,
-  options: object = {},
-): Promise<PinnedChromeReport & { image: Uint8Array }> {
+  options: CaptureOptions = {},
+): Promise<CaptureResult> {
+  const { elements: elementsOption, ...screenshotOptions } = options;
   const { pinned } = await page.evaluate(pinBottomChromeInPage);
   try {
-    const image = await page.screenshot({ ...options, fullPage: true });
-    return { image, pinned };
+    const image = await page.screenshot({
+      ...screenshotOptions,
+      fullPage: true,
+    });
+    if (elementsOption === false) return { image, pinned, elements: null };
+    const elements = await page.evaluate(collectElementsInPage);
+    const target =
+      typeof elementsOption === "object" && elementsOption.path
+        ? elementsOption.path
+        : typeof options.path === "string"
+          ? elementMapPath(options.path)
+          : null;
+    if (target) {
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, `${JSON.stringify(elements, null, 2)}\n`);
+    }
+    return { image, pinned, elements };
   } finally {
     await page.evaluate(restoreBottomChromeInPage);
   }

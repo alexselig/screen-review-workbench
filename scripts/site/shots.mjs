@@ -37,6 +37,13 @@ export const SHOTS = [
     query: at("route"),
   },
   {
+    name: "thread",
+    query: at("route"),
+    async prepare(page) {
+      await page.getByText("Return toggle is easy to miss").first().click();
+    },
+  },
+  {
     name: "fullscreen",
     query: at("review-pay"),
     async prepare(page) {

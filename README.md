@@ -23,6 +23,13 @@ with screenshots).
 npx screencheck serve --open
 ```
 
+Not on npm yet. Until it is, from a clone:
+
+```bash
+npm install && npm run build && npm link   # puts `screencheck` on your PATH
+screencheck serve --open
+```
+
 The server binds to `http://127.0.0.1:4173` (`--port` to change it) and
 records itself in `~/.screencheck/server.json`, so the other commands find it
 without a port. Throwaway servers (demos, scripts) can set `SCREENCHECK_RECORD=0`
@@ -215,7 +222,7 @@ HTTP API above: it never reads feedback files itself, and it only talks to a
 ScreenCheck on loopback (`127.0.0.1`, `localhost` or `[::1]`).
 
 It finds the running server on its own: `--url`, then `SCREENCHECK_URL`, then
-`~/.screencheck/server.json` (written by `npm run dev`), then port 4173. It
+`~/.screencheck/server.json` (written by `screencheck serve` and `npm run dev`), then port 4173. It
 looks this up on every call, so it can start before ScreenCheck does; until
 then each tool says ScreenCheck isn't running.
 
@@ -234,6 +241,10 @@ Markdown export is also a resource (`screencheck://project/<id>/feedback.md`),
 and the `fix_open_feedback` prompt walks an agent through the open P0 and P1
 comments. Replies are signed `Agent` unless the tool call passes `author` or
 the server is started with `--author <name>` (or `SCREENCHECK_AUTHOR`).
+
+With `screencheck` on your PATH (see Install), the command is
+`screencheck mcp`; from a clone without linking, use
+`npx tsx /path/to/screencheck/src/mcp/main.ts` as below.
 
 **Copilot CLI** (`~/.copilot/mcp-config.json`):
 

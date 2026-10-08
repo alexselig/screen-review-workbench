@@ -343,6 +343,10 @@
         gap: var(--space-6);
         align-items: center;
       }
+      .figures {
+        display: grid;
+        gap: var(--space-4);
+      }
       .feature:nth-of-type(even) .feature-grid {
         grid-template-columns: 7fr 5fr;
       }
@@ -652,7 +656,8 @@
               <p class="lede">
                 Capture every screen of your app, drop numbered pins where the
                 problems are, and approve screens one by one. When an agent
-                fixes a pin, it says what it changed, right on the card.
+                fixes a pin, it says what it changed, right on the card, and you
+                verify it.
               </p>
               <div class="actions">
                 <a class="btn btn-orange" href="#install">Run it locally</a>
@@ -730,7 +735,7 @@
               </li>
               <li>
                 <a href="#f3"
-                  ><span class="dot">3</span><span>Agent replies</span></a
+                  ><span class="dot">3</span><span>Replies and verify</span></a
                 >
               </li>
               <li>
@@ -803,8 +808,8 @@
                 </li>
                 <li><b>P0, P1, P2</b> priorities plus any free-text tags.</li>
                 <li>
-                  The card you're typing in never jumps, even when it changes
-                  group.
+                  Captured with the helper, each pin names the element under it:
+                  <code>↳ button "Return" · TripTypeToggle.tsx:24</code>.
                 </li>
               </ul>
             </div>
@@ -831,14 +836,14 @@
               <h2 id="f2-title">Sort by status</h2>
               <p>
                 Comments group into <b>Backlog</b>, <b>In progress</b>,
-                <b>Fixed</b> and <b>Won't fix</b>, then by priority. Each group
-                has its own <b>Hide pins</b> switch, so you can clear the screen
-                of everything except what still needs work.
+                <b>Fixed</b>, <b>Verified</b> and <b>Won't fix</b>, then by
+                priority. Each group has its own <b>Hide pins</b> switch, so you
+                can clear the screen of everything except what still needs work.
               </p>
               <ul>
                 <li>
-                  <span class="tag t-teal">Fixed</span> pins turn teal with a
-                  check and start hidden.
+                  <span class="tag t-teal">Fixed</span> and Verified pins turn
+                  teal with a check and start hidden.
                 </li>
                 <li>
                   Empty groups disappear; untagged comments sit under their
@@ -867,30 +872,48 @@
               <span class="num" aria-hidden="true">3</span>
               <h2 id="f3-title">Agents close the loop</h2>
               <p>
-                Whoever fixes a comment can reply on it: what changed, or why it
-                won't. The reply sits under the note on the card, survives later
-                status changes and appears in exports.
+                Whoever fixes a comment replies on it: what changed, or why it
+                won't. Fixed isn't done until you say so. Every Fixed card has
+                <b>Verify</b> and <b>Reopen</b>; only a reviewer can verify.
               </p>
               <ul>
-                <li>One call sets the reply and the status.</li>
                 <li>
-                  Works from any agent with <code>node</code>.
-                  <a href="#agents">See the commands</a>.
+                  Replies and your answers form a thread on the comment, kept
+                  through status changes and in exports.
+                </li>
+                <li>Reopen asks why and sends the comment back to Backlog.</li>
+                <li>
+                  Agents reply from the CLI or over MCP.
+                  <a href="#agents">See how</a>.
                 </li>
               </ul>
             </div>
-            <figure>
-              <img
-                src="assets/agent-reply.png"
-                width="2880"
-                height="1800"
-                loading="lazy"
-                alt="The Choose route screen. Under Fixed, a teal pin's card shows the original note and an agent reply: Moved the saving into the Return button label and made Return the default."
-              />
-              <figcaption>
-                A Fixed comment with the agent's reply underneath.
-              </figcaption>
-            </figure>
+            <div class="figures">
+              <figure>
+                <img
+                  src="assets/agent-reply.png"
+                  width="2880"
+                  height="1800"
+                  loading="lazy"
+                  alt="The Choose route screen. Under Fixed, a teal pin's card shows the note, the element under the pin (button Return, TripTypeToggle.tsx:24), the agent's latest reply, and Verify and Reopen buttons."
+                />
+                <figcaption>
+                  A Fixed comment waiting on the reviewer: Verify or Reopen.
+                </figcaption>
+              </figure>
+              <figure>
+                <img
+                  src="assets/thread.png"
+                  width="2880"
+                  height="1800"
+                  loading="lazy"
+                  alt="The same comment opened in the editor. Below the note, a thread: the agent's reply, the reviewer asking for the teal accent, and the agent's second reply."
+                />
+                <figcaption>
+                  Open the comment to read the whole thread.
+                </figcaption>
+              </figure>
+            </div>
           </div>
         </section>
 
@@ -1044,32 +1067,39 @@
             </p>
             <ol class="steps">
               <li>Review the build and pin what's wrong.</li>
-              <li>Export the backlog as Markdown and hand it to the agent.</li>
               <li>
-                The agent fixes each comment and replies with
-                <code>reply.mjs</code>.
+                Point the agent at ScreenCheck over MCP, or hand it a Markdown
+                export.
               </li>
-              <li>Recapture, read the replies and approve the screen.</li>
+              <li>The agent fixes each comment, replies and marks it Fixed.</li>
+              <li>
+                Recapture, verify or reopen each fix, and approve the screen.
+              </li>
             </ol>
           </div>
           <div>
-            <pre><code><span class="c"># Open comments: id, screen, pin, status, tags, note</span>
-<span class="k">node</span> scripts/reply.mjs --project tidewater --list
+            <pre><code><span class="c"># MCP: Copilot CLI, Claude Code or VS Code</span>
+<span class="k">claude</span> mcp add screencheck -- screencheck mcp
+
+<span class="c"># Tools: list_projects, list_feedback, get_comment,</span>
+<span class="c"># reply, set_status, approval_status</span></code></pre>
+            <p style="margin-top: var(--space-3)">
+              <code>get_comment</code> returns the note, the element under the
+              pin and a crop of the capture with the pin circled, so the agent
+              sees what you saw.
+            </p>
+            <pre><code><span class="c"># Or from a shell: list open comments</span>
+<span class="k">screencheck</span> reply --project tidewater --list
 
 <span class="c"># Say what changed and mark it Fixed</span>
-<span class="k">node</span> scripts/reply.mjs --project tidewater \
+<span class="k">screencheck</span> reply --project tidewater \
   --id &lt;feedbackId&gt; --status fixed --author Copilot \
   --note "Moved the saving into the Return button label."</code></pre>
-            <pre><code><span class="c"># Or explain why not</span>
-<span class="k">node</span> scripts/reply.mjs --project tidewater \
-  --id &lt;feedbackId&gt; --status wont-fix \
-  --note "Keeping it: most repeat bookings start here."</code></pre>
             <p style="margin-top: var(--space-3)">
               <code>--status</code> takes <code>fixed</code>,
               <code>wont-fix</code>, <code>in-progress</code> or
-              <code>backlog</code>. Leave it out to reply without moving the
-              comment. If you edit the same comment at that moment, the script
-              re-reads and retries once.
+              <code>backlog</code>. Agents can't mark a comment Verified; that
+              stays with you.
             </p>
           </div>
         </div>
@@ -1084,12 +1114,14 @@
               <h3>1. Start it</h3>
               <p>
                 Node 22 or later. The server listens on
-                <code>127.0.0.1:4173</code> only.
+                <code>127.0.0.1:4173</code> only. <code>npm link</code> puts
+                <code>screencheck</code> on your path; it isn't on npm yet.
               </p>
               <pre><code>git clone https://github.com/alexselig/screencheck
 cd screencheck
 npm install
-npm run dev</code></pre>
+npm run build &amp;&amp; npm link
+screencheck serve --open</code></pre>
             </div>
             <div>
               <h3>2. Capture your screens</h3>

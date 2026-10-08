@@ -28,15 +28,15 @@ closest commercial analogue and is cloud SaaS.
 
 **Where it is exposed:**
 
-- **No MCP server.** Every peer shipped one in 2025–26, so it is now table stakes.
+- ~~**No MCP server.**~~ Shipped (#1).
 - **Onboarding means hand-writing project JSON** and writing your own capture
   script.
-- **Pins are pixels, not code.** The agent still has to work out which element
-  and which file a pin means. The "agent playing detective" problem is what
-  stagewise, React Grab and Cursor Design Mode exist to solve.
+- ~~**Pins are pixels, not code.**~~ Element maps shipped (#2); captures
+  taken before them still leave the agent guessing which element and file a
+  pin means.
 - **No version-to-version view**, even though versions are the core data model.
-- **"Fixed" is the agent's word against nobody's.** Nothing shows the reviewer
-  the before and after, and there is no way to verify a fix.
+- **"Fixed" is the agent's word against nobody's.** Verify shipped (#3);
+  before/after crops (#9) are still to come.
 
 ## Ranking method
 
@@ -52,6 +52,12 @@ Ties go to whatever unblocks later items.
 ## Stack-ranked features
 
 ### Now: close the agent loop
+
+**Shipped in October 2026.** All five items below are on `main`: the MCP
+server (`screencheck mcp`), element maps written by `captureFullPage`, the
+reviewer-only Verified status with Verify/Reopen and the approval check,
+threaded replies (`schemaVersion: 2`), and the `screencheck` CLI. Still open:
+publishing the package to npm (it builds and packs; `npm link` until then).
 
 | #   | Feature                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Why it ranks here                                                                                                                                                                                     | Effort |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -122,10 +128,10 @@ Success measures:
 
 ## Housekeeping before the milestone
 
-- Fix the failing `tests/screen-caption.test.tsx` "Escape cancels without saving".
-- Move `scripts/reply.mjs` into the CLI and keep a shim for the old path.
-- Version the on-disk schema (`feedback.json` gets a `schemaVersion`) before
-  threads (#4) and carried pins (#8) change its shape.
+- [x] Fix the failing `tests/screen-caption.test.tsx` "Escape cancels without saving".
+- [x] Move `scripts/reply.mjs` into the CLI and keep a shim for the old path.
+- [x] Version the on-disk schema (`feedback.json` gets a `schemaVersion`) before
+      threads (#4) and carried pins (#8) change its shape.
 
 ## Sources
 

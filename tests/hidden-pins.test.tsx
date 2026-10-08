@@ -96,15 +96,14 @@ describe("hiding pins by section", () => {
   });
 
   it("falls back to hiding fixed pins when storage is unreadable", () => {
-    localStorage.setItem(
-      "screencheck:hidden-pin-statuses",
-      "{broken",
-    );
-    expect(readHiddenPinStatuses()).toEqual(["RESOLVED"]);
+    localStorage.setItem("screencheck:hidden-pin-statuses", "{broken");
+    expect(readHiddenPinStatuses()).toEqual(["RESOLVED", "VERIFIED"]);
     localStorage.setItem(
       "screencheck:hidden-pin-statuses",
       JSON.stringify(["OPEN", "nonsense"]),
     );
-    expect(readHiddenPinStatuses()).toEqual(["OPEN"]);
+    // A list saved before Verified existed keeps its choices and hides
+    // Verified by default.
+    expect(readHiddenPinStatuses()).toEqual(["OPEN", "VERIFIED"]);
   });
 });

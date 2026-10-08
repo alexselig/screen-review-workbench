@@ -206,6 +206,8 @@ describe("feedback replies", () => {
       ],
     });
     expect(markdown).toContain("`id: abc-123`");
-    expect(markdown).toContain("  - Reply (Copilot): Pinned it.");
+    expect(markdown).toContain(
+      "  - Reply (Copilot, 2026-10-05 20:00 UTC): Pinned it.",
+    );
   });
 });

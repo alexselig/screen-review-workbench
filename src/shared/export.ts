@@ -5,7 +5,12 @@ import {
   type ElementMap,
   type MappedElement,
 } from "./elements";
-import { STATUS_LABELS, type FeedbackRecord } from "./feedback";
+import {
+  STATUS_LABELS,
+  feedbackThread,
+  type FeedbackMessage,
+  type FeedbackRecord,
+} from "./feedback";
 import type { ReviewScreen } from "./manifest";
 
 export type FeedbackExportInput = {
@@ -23,6 +28,7 @@ export type FeedbackExportInput = {
 };
 
 type ExportFeedback = FeedbackRecord & {
+  thread: FeedbackMessage[];
   screenOrdinal: number | null;
   screenTitle: string;
   screenDescription: string | null;
@@ -74,6 +80,7 @@ function safeFeedback(input: FeedbackExportInput): ExportFeedback[] {
       const screen = screenById.get(item.screenId);
       return {
         ...item,
+        thread: feedbackThread(item),
         screenOrdinal: screen?.ordinal ?? null,
         screenTitle: screen?.title ?? item.screenId,
         screenDescription: screen?.description ?? null,
@@ -115,6 +122,14 @@ function percent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
+// One line per message, oldest first: "Reply" for the agent, "Reviewer" for
+// the person, then the status change the message made, if any.
+function threadLine(message: FeedbackMessage) {
+  const who = message.role === "agent" ? "Reply" : "Reviewer";
+  const status = message.status ? ` → ${STATUS_LABELS[message.status]}` : "";
+  return `  - ${who} (${escapeMarkdown(message.author)}, ${message.at.slice(0, 16).replace("T", " ")} UTC)${status}: ${escapeMarkdown(message.note)}`;
+}
+
 export function serializeMarkdown(input: FeedbackExportInput): string {
   const records = safeFeedback(input);
   const lines = [
@@ -138,17 +153,17 @@ export function serializeMarkdown(input: FeedbackExportInput): string {
       currentScreen = screenKey;
     }
     const checked =
-      item.status === "RESOLVED" || item.status === "WONT_FIX" ? "x" : " ";
+      item.status === "RESOLVED" ||
+      item.status === "VERIFIED" ||
+      item.status === "WONT_FIX"
+        ? "x"
+        : " ";
     lines.push(
       `- [${checked}] **Pin ${item.pinNumber}${item.tags.length ? ` · ${item.tags.join(", ")}` : ""} · ${STATUS_LABELS[item.status]}** (${percent(item.x)}, ${percent(item.y)}): ${escapeMarkdown(item.note)} \`id: ${item.id.replace(/`/g, "")}\``,
       ...(item.element
         ? [`  - Element: ${escapeMarkdown(item.element.description)}`]
         : []),
-      ...(item.reply
-        ? [
-            `  - Reply (${escapeMarkdown(item.reply.author)}): ${escapeMarkdown(item.reply.note)}`,
-          ]
-        : []),
+      ...item.thread.map(threadLine),
     );
   }
 

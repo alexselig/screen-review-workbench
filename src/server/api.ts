@@ -9,6 +9,7 @@ import {
   loopbackOrigins,
 } from "./origin";
 import type { ProjectCatalog } from "./projects";
+import { ACTOR_HEADER, REVIEWER_ACTOR } from "../shared/feedback";
 import {
   FeedbackConflictError,
   FeedbackNotFoundError,
@@ -61,6 +62,30 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   } catch {
     throw new HttpError(400, "Request body is not valid JSON.");
   }
+}
+
+function isVerified(value: unknown) {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "status" in value &&
+    value.status === "VERIFIED"
+  );
+}
+
+// Verified means a person looked at the fix, so only the ScreenCheck UI (which
+// sends the reviewer actor header) may set it. Agents get a clear 403.
+export function assertMaySetVerified(
+  headers: IncomingMessage["headers"],
+  records: unknown[],
+) {
+  if (!records.some(isVerified)) return;
+  const actor = headers[ACTOR_HEADER];
+  if (actor === REVIEWER_ACTOR) return;
+  throw new HttpError(
+    403,
+    `Only a reviewer can mark feedback Verified. Agents should set Fixed and let the reviewer verify it in ScreenCheck (requests that set Verified must carry ${ACTOR_HEADER}: ${REVIEWER_ACTOR}).`,
+  );
 }
 
 const ROUTE =
@@ -212,23 +237,29 @@ export async function handleApi(
         feedback: await storage.listFeedback(projectId),
       });
     } else if (!id && !isImport && method === "POST") {
-      const created = await storage.createFeedback(
-        projectId,
-        (await readJsonBody(request)) as never,
-      );
+      const body = await readJsonBody(request);
+      assertMaySetVerified(request.headers, [body]);
+      const created = await storage.createFeedback(projectId, body as never);
       sendJson(response, 201, { feedback: created });
     } else if (isImport && method === "POST") {
       const body = importBodySchema.parse(await readJsonBody(request));
+      assertMaySetVerified(request.headers, body.records);
       sendJson(
         response,
         200,
         await storage.importFeedback(projectId, body.records),
       );
     } else if (id && method === "PATCH") {
+      const body = await readJsonBody(request);
+      assertMaySetVerified(request.headers, [
+        typeof body === "object" && body !== null && "patch" in body
+          ? body.patch
+          : undefined,
+      ]);
       const updated = await storage.updateFeedback(
         projectId,
         id,
-        (await readJsonBody(request)) as never,
+        body as never,
       );
       sendJson(response, 200, { feedback: updated });
     } else if (id && method === "DELETE") {

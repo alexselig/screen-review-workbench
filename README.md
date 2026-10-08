@@ -56,13 +56,22 @@ npm run build   # dist/client plus the bundled CLI in dist/cli.js
 - Screen pins placed on an aspect-locked screen frame, so they stay put at any
   window size. Each comment card leads with the same numbered dot as its pin.
 - Free-text tags with suggested P0/P1/P2 priorities (one at a time; new pins
-  default to P1), a status of Backlog, In progress, Fixed or Won't fix,
-  autosaved notes and two-step delete. Fixed pins turn teal with a check badge
-  so new feedback stands out from what has already been addressed.
-- **Replies close the loop.** Whoever fixes a comment (usually an agent) can
-  attach a reply saying what was done, or why not, and set its status in the
-  same call. The reply shows under the note on the card and in the editor,
-  survives later status changes, and appears in exports.
+  default to P1), a status of Backlog, In progress, Fixed, Verified or
+  Won't fix, autosaved notes and two-step delete. Fixed pins turn teal with a
+  check badge and Verified pins are solid teal, so new feedback stands out from
+  what has already been addressed.
+- **Threads close the loop.** Each comment keeps an ordered thread of messages
+  from the agent and the reviewer. Whoever fixes a comment (usually an agent)
+  replies with what was done, or why not, and can set its status in the same
+  call. The collapsed card shows the latest message; the editor shows the whole
+  thread, each message with its author, time and any status change it made,
+  plus a **Reply** box for the reviewer. Closing a comment as Fixed or Won't fix
+  from the editor needs a reply. Threads appear in exports in order.
+- **Verify step.** A Fixed card shows **Verify** and **Reopen**. Verify moves it
+  to Verified; Reopen moves it back to Backlog and asks why, adding the reason
+  to the thread. Only a person sets Verified: the server refuses it unless the
+  request carries `x-screencheck-actor: reviewer`, which the browser sends and
+  agents do not.
 - **Export** in the action bar opens a dialog: Markdown or JSON, all screens or
   this screen only, and which statuses to include. Exports are deterministic,
   state their scope, and keep on-screen pin numbers.
@@ -74,9 +83,12 @@ npm run build   # dist/client plus the bundled CLI in dist/cli.js
   through its first autosave, so the editor never grows under your cursor;
   the status picker appears once you reopen it.
   Each status section has a **Hide pins / Show pins** switch on its right;
-  Fixed pins are hidden by default and the choice is remembered per browser.
+  Fixed and Verified pins are hidden by default and the choice is remembered
+  per browser.
 - **Approve screen** is pinned to the foot of the feedback panel. One click
   approves the screen (teal, "Screen approved"); click again to unapprove.
+  If the screen still has Fixed comments nobody has verified, the click asks
+  first ("1 fix not verified. Approve anyway?").
   Approvals are saved per version and screen in `approvals.json`. Approved
   screens carry a teal check left of their number in the screen index, expanded,
   collapsed and fullscreen. The open-comment count is a matching orange badge
@@ -89,7 +101,9 @@ npm run build   # dist/client plus the bundled CLI in dist/cli.js
   screen's optional manifest `description` is the default, and clearing an
   edit restores it.
 - Older feedback files are migrated on read: priority Blocking/Important/Polish
-  becomes P0/P1/P2 and the category becomes a tag.
+  becomes P0/P1/P2, the category becomes a tag, and a single `reply` becomes
+  the first message of the thread. Files are written with `schemaVersion: 2`;
+  a file without it is read as version 1 and only rewritten on the next change.
 - Responsive layout: at 900px and below, screens become a numbered strip and
   the feedback panel stacks under the canvas.
 - Real captures: registered projects are read from
@@ -126,20 +140,35 @@ Feedback is written to disk by the server, never only to the browser:
 Set `SCREENCHECK_DATA` to use another folder (useful for testing). The
 server prints the folder it is using on startup.
 
-| Route                                                      | Purpose                                                                                                                                                      |
-| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `GET /api/projects/:projectId/feedback`                    | List feedback                                                                                                                                                |
-| `POST /api/projects/:projectId/feedback`                   | Create (idempotent on `clientMutationId`)                                                                                                                    |
-| `PATCH /api/projects/:projectId/feedback/:id`              | Update; `409` with the current record if `expectedUpdatedAt` is stale. Patch `reply: {note, author?}` to answer (server stamps `at`), `reply: null` to clear |
-| `DELETE /api/projects/:projectId/feedback/:id`             | Delete the expected revision                                                                                                                                 |
-| `GET /api/projects`                                        | Registered projects and screens (no local paths or proxy settings)                                                                                           |
-| `GET /api/projects/:projectId/captures/:version/:screenId` | A screen's capture image, only from inside that version's `captureRoot`                                                                                      |
-| `GET /api/projects/:projectId/elements/:version/:screenId` | A screen's element map (`<capture>.elements.json`), only from inside `captureRoot`; `404` when there is none, `500` if malformed                             |
-| `POST /api/projects/:projectId/feedback/import`            | Merge records saved elsewhere, keeping ids                                                                                                                   |
-| `GET /api/projects/:projectId/approvals`                   | Approved screens (stored beside `feedback.json` in `approvals.json`)                                                                                         |
-| `PUT /api/projects/:projectId/approvals`                   | Set `{version, screenId, approved}`; returns the full list                                                                                                   |
-| `GET /api/projects/:projectId/captions`                    | Screen descriptions (stored beside `feedback.json` in `captions.json`)                                                                                       |
-| `PUT /api/projects/:projectId/captions`                    | Set `{version, screenId, text}`; empty text clears; returns the list                                                                                         |
+| Route                                                      | Purpose                                                                                                                          |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/projects/:projectId/feedback`                    | List feedback                                                                                                                    |
+| `POST /api/projects/:projectId/feedback`                   | Create (idempotent on `clientMutationId`)                                                                                        |
+| `PATCH /api/projects/:projectId/feedback/:id`              | Update; `409` with the current record if `expectedUpdatedAt` is stale. See below for replies, messages and Verified              |
+| `DELETE /api/projects/:projectId/feedback/:id`             | Delete the expected revision                                                                                                     |
+| `GET /api/projects`                                        | Registered projects and screens (no local paths or proxy settings)                                                               |
+| `GET /api/projects/:projectId/captures/:version/:screenId` | A screen's capture image, only from inside that version's `captureRoot`                                                          |
+| `GET /api/projects/:projectId/elements/:version/:screenId` | A screen's element map (`<capture>.elements.json`), only from inside `captureRoot`; `404` when there is none, `500` if malformed |
+| `POST /api/projects/:projectId/feedback/import`            | Merge records saved elsewhere, keeping ids                                                                                       |
+| `GET /api/projects/:projectId/approvals`                   | Approved screens (stored beside `feedback.json` in `approvals.json`)                                                             |
+| `PUT /api/projects/:projectId/approvals`                   | Set `{version, screenId, approved}`; returns the full list                                                                       |
+| `GET /api/projects/:projectId/captions`                    | Screen descriptions (stored beside `feedback.json` in `captions.json`)                                                           |
+| `PUT /api/projects/:projectId/captions`                    | Set `{version, screenId, text}`; empty text clears; returns the list                                                             |
+
+Feedback records carry `thread: [{id, author, role, note, at, status?}]`
+(`role` is `reviewer` or `agent`; `status` is the change that message made)
+and a derived `reply: {note, author, at}`, the latest agent message, for older
+clients. In a PATCH:
+
+- `reply: {note, author?}` appends an agent message (author defaults to
+  `Agent`). `reply: null` removes the most recent agent message.
+- `message: {note, author?, role?}` appends a message; `role` defaults to
+  `reviewer`. Send `reply` or `message`, not both.
+- The server stamps each message's `id` and `at`. If the same patch changes
+  `status`, the message records the new status.
+- Moving to Fixed or Won't fix needs a `reply` or `message` in the same patch.
+- `status: "VERIFIED"` returns `403` unless the request carries
+  `x-screencheck-actor: reviewer`. The same rule applies to create and import.
 
 Every mutation must carry a loopback `Origin` header and a JSON body (1 MB
 max); requests with a non-loopback `Host` header are refused. If
@@ -171,7 +200,9 @@ npx screencheck reply --project shop \
 From a clone, `node scripts/reply.mjs` still works with the same flags.
 
 `--status` accepts `fixed`, `wont-fix`, `in-progress` or `backlog` and may be
-left out to reply without moving the comment. `--clear` removes a reply.
+left out to reply without moving the comment. Each reply is added to the
+comment's thread; `--clear` removes the latest agent reply. Agents cannot mark
+a comment Verified: they set Fixed and the reviewer verifies it in ScreenCheck.
 Markdown exports list each comment's `id` so the agent can address it; if the
 reviewer edits a comment at the same moment, the script re-reads and retries
 once.

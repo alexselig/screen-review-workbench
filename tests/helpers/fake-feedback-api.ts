@@ -109,6 +109,13 @@ export async function installFakeFeedbackApi() {
         });
       }
       if (id && method === "PATCH") {
+        // Mirror the server: only the reviewer's browser may set Verified.
+        const actor = new Headers(init.headers).get("x-screencheck-actor");
+        if (body?.patch?.status === "VERIFIED" && actor !== "reviewer") {
+          return reply(403, {
+            error: "Only a reviewer can mark feedback Verified.",
+          });
+        }
         return reply(200, {
           feedback: await storage.updateFeedback(projectId, id, body),
         });

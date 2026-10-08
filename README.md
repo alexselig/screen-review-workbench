@@ -17,15 +17,34 @@ configuration under `~/.screencheck`.
 **Site:** https://alexselig.github.io/screencheck/ (feature tour
 with screenshots).
 
-## Development
+## Install / Run
+
+```bash
+npx screencheck serve --open
+```
+
+The server binds to `http://127.0.0.1:4173` (`--port` to change it) and
+records itself in `~/.screencheck/server.json`, so the other commands find it
+without a port. Node 22 or later.
+
+| Command                                              | What it does                                                     |
+| ---------------------------------------------------- | ---------------------------------------------------------------- |
+| `screencheck serve [--port 4173] [--open]`           | Start the review server                                          |
+| `screencheck status`                                 | Print the running server's origin, or "not running"              |
+| `screencheck reply --project <id> ...`               | List open comments or reply to one (see below)                   |
+| `screencheck mcp [--url <origin>] [--author <name>]` | Run the MCP server on stdio for coding agents                    |
+| `screencheck capture <url> --out <file>`             | Full-page screenshot without mid-page footers (needs Playwright) |
+
+`screencheck --help` lists them; `screencheck <command> --help` shows options.
+
+### Develop
 
 ```bash
 npm install
+npm run dev     # Vite with HMR on http://127.0.0.1:4173
 npm test
-npm run dev
+npm run build   # dist/client plus the bundled CLI in dist/cli.js
 ```
-
-The server binds to `http://127.0.0.1:4173`.
 
 ## Current implementation
 
@@ -134,17 +153,20 @@ feedback, and injected headers must remain outside Git.
 ## Closing the loop (for agents)
 
 After working through exported feedback, an agent answers each comment with
-`scripts/reply.mjs`, which talks to the running ScreenCheck server:
+`screencheck reply`, which talks to the running ScreenCheck server (found
+through `~/.screencheck/server.json`, or pass `--url` / `--port`):
 
 ```bash
 # Open comments, tab-separated: id, version/screen pin N, status, tags, note
-node scripts/reply.mjs --project shop --port 4173 --list
+npx screencheck reply --project shop --list
 
 # Say what was done and mark it Fixed (or --status wont-fix with the reason)
-node scripts/reply.mjs --project shop --port 4173 \
+npx screencheck reply --project shop \
   --id <feedbackId> --status fixed --author Copilot \
   --note "Moved the footer to the end of the page."
 ```
+
+From a clone, `node scripts/reply.mjs` still works with the same flags.
 
 `--status` accepts `fixed`, `wont-fix`, `in-progress` or `backlog` and may be
 left out to reply without moving the comment. `--clear` removes a reply.
@@ -188,10 +210,12 @@ rather than in this repository.
 Playwright's `fullPage` screenshot grows the capture, not the viewport, so a
 footer or action bar with `position: fixed; bottom: 0` (or a stuck
 `position: sticky; bottom: 0`) is painted at the bottom of the _first screen_,
-in the middle of a long page. Capture scripts should use the helper instead:
+in the middle of a long page. For a single shot, run
+`npx screencheck capture <url> --out shot.png [--width 1440 --height 1000]
+[--wait-for <selector>]`. Capture scripts should use the helper instead:
 
 ```ts
-import { captureFullPage } from "../screencheck/src/capture/full-page";
+import { captureFullPage } from "screencheck/capture";
 
 await captureFullPage(page, { path: "capture.webp", type: "webp" });
 ```

@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { run } from "../scripts/reply.mjs";
+import { runReply as run } from "../src/cli/reply";
 import { handleApi } from "../src/server/api";
 import { createFeedbackStorage } from "../src/server/storage";
 import { serializeMarkdown } from "../src/shared/export";

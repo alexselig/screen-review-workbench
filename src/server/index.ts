@@ -12,6 +12,7 @@ import { handleApi, sendJson as json } from "./api";
 import { appHome } from "./home";
 import { createProjectCatalog, defaultProjectsRoot } from "./projects";
 import { assertLoopbackHost, LOOPBACK_HOST } from "./origin";
+import { clearRuntimeInfo, writeRuntimeInfo } from "./runtime";
 import { sharedFeedbackStorage } from "./storage";
 
 export type ServerOptions = {
@@ -91,4 +92,15 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   console.log(`ScreenCheck: ${running.origin}`);
   console.log(`Feedback stored in: ${running.dataRoot}`);
   console.log(`Projects read from: ${running.projectsRoot}`);
+  writeRuntimeInfo({
+    origin: running.origin,
+    pid: process.pid,
+    startedAt: new Date().toISOString(),
+    dataRoot: running.dataRoot,
+    projectsRoot: running.projectsRoot,
+  });
+  process.on("exit", () => clearRuntimeInfo());
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.on(signal, () => process.exit(0));
+  }
 }

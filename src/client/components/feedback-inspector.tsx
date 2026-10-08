@@ -9,6 +9,7 @@ import {
 } from "react";
 
 import { createPinNumbers } from "../../shared/export";
+import { ElementLine } from "./element-line";
 import {
   FEEDBACK_STATUSES,
   STATUS_LABELS,
@@ -814,6 +815,7 @@ export function FeedbackInspector({
             {pinNumbers.get(item.id) ?? 0}
           </span>
           <strong>{item.note}</strong>
+          <ElementLine projectId={projectId} pin={item} />
           {otherTags.length ? (
             <span className="feedback-comment-tags">
               {otherTags.map((tag) => (
@@ -898,6 +900,9 @@ export function FeedbackInspector({
           value={editor.note}
         />
       </label>
+      {editingRecord ? (
+        <ElementLine projectId={projectId} pin={editingRecord} />
+      ) : null}
       {editingRecord?.reply ? <ReplyNote reply={editingRecord.reply} /> : null}
       {editingRecord && !freshRecord ? (
         <label>

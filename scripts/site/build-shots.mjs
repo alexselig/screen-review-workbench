@@ -91,10 +91,10 @@ function startServer(dataRoot, projectsRoot) {
   });
 }
 
-async function api(method, route, body) {
+async function api(method, route, body, headers = {}) {
   const response = await fetch(`${ORIGIN}/api/projects/${PROJECT}${route}`, {
     method,
-    headers: { "content-type": "application/json", origin: ORIGIN },
+    headers: { "content-type": "application/json", origin: ORIGIN, ...headers },
     body: body ? JSON.stringify(body) : undefined,
   });
   if (!response.ok)
@@ -116,12 +116,32 @@ async function seed() {
       tags: comment.tags,
       status: comment.status,
     });
-    const record = created.feedback;
+    let record = created.feedback;
+    const patch = async (change, headers) => {
+      record = (
+        await api(
+          "PATCH",
+          `/feedback/${record.id}`,
+          { expectedUpdatedAt: record.updatedAt, patch: change },
+          headers,
+        )
+      ).feedback;
+    };
     if (comment.reply) {
-      await api("PATCH", `/feedback/${record.id}`, {
-        expectedUpdatedAt: record.updatedAt,
-        patch: { reply: { note: comment.reply, author: "Agent" } },
-      });
+      await patch({ reply: { note: comment.reply, author: "Agent" } });
+    }
+    for (const message of comment.thread ?? []) {
+      await patch(
+        message.role === "reviewer"
+          ? { message: { note: message.note, author: "Alex" } }
+          : { reply: { note: message.note, author: "Agent" } },
+      );
+    }
+    if (comment.verified) {
+      await patch(
+        { status: "VERIFIED" },
+        { "x-screencheck-actor": "reviewer" },
+      );
     }
   }
   for (const screenId of APPROVED) {

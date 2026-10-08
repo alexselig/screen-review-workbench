@@ -239,13 +239,24 @@ export const COMMENTS = [
   },
   {
     screen: "route",
-    x: 0.55,
-    y: 0.35,
+    x: 0.275,
+    y: 0.517,
     note: "Return toggle is easy to miss; the 10% saving should sit next to it.",
     tags: ["P1", "Conversion"],
     status: "RESOLVED",
     reply:
       "Moved the saving into the Return button label and made Return the default.",
+    // Later messages, in order: reviewer follow-ups and agent answers.
+    thread: [
+      {
+        role: "reviewer",
+        note: "Better. The saving still reads as body text; give it the teal accent.",
+      },
+      {
+        role: "agent",
+        note: "Saving is now a teal tag inside the Return button.",
+      },
+    ],
   },
   {
     screen: "route",
@@ -279,6 +290,7 @@ export const COMMENTS = [
     tags: ["P2", "Copy"],
     status: "RESOLVED",
     reply: 'Header now reads "Per vehicle, 2 adults".',
+    verified: true,
   },
   {
     screen: "vehicle",

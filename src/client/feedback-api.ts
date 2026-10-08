@@ -1,4 +1,6 @@
 import {
+  ACTOR_HEADER,
+  REVIEWER_ACTOR,
   feedbackRecordSchema,
   type CreateFeedbackInput,
   type FeedbackRecord,
@@ -34,10 +36,15 @@ async function request<T>(
   try {
     response = await fetch(url, {
       method: init.method,
+      // Every mutation from the browser is the reviewer's, which is what lets
+      // the server accept Verified from here and nowhere else.
       headers:
         init.body === undefined
           ? undefined
-          : { "content-type": "application/json" },
+          : {
+              "content-type": "application/json",
+              [ACTOR_HEADER]: REVIEWER_ACTOR,
+            },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
     });
   } catch {

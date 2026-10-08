@@ -5,6 +5,7 @@ import {
   rename,
   type FileHandle,
 } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { join, resolve } from "node:path";
 
 import { z } from "zod";
@@ -12,8 +13,10 @@ import { z } from "zod";
 import {
   createFeedbackInputSchema,
   feedbackRecordSchema,
+  feedbackThread,
   updateFeedbackInputSchema,
   type CreateFeedbackInput,
+  type FeedbackMessage,
   type FeedbackRecord,
   type UpdateFeedbackInput,
 } from "../shared/feedback";
@@ -30,8 +33,15 @@ import {
   type SetCaptionInput,
 } from "../shared/captions";
 
+// The shape of feedback records on disk. v1 files (no `schemaVersion`) hold a
+// single `reply` per comment; v2 holds `thread`. Older files are migrated in
+// memory on read and only rewritten by the next mutation. `version` stays 1 so
+// older builds can still read the envelope.
+export const FEEDBACK_SCHEMA_VERSION = 2;
+
 const feedbackEnvelopeSchema = z.object({
   version: z.literal(1),
+  schemaVersion: z.number().int().min(1).optional(),
   feedback: z.array(feedbackRecordSchema),
 });
 
@@ -81,6 +91,8 @@ export class FeedbackNotFoundError extends Error {
 export type FeedbackStorageOptions = {
   dataRoot: string;
   now?: () => Date;
+  // Ids for new thread messages; random UUIDs unless a test needs fixed ones.
+  newId?: () => string;
   fileSystem?: Partial<StorageFileSystem>;
 };
 
@@ -120,6 +132,7 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
     ...options.fileSystem,
   };
   const now = options.now ?? (() => new Date());
+  const newId = options.newId ?? randomUUID;
   const mutationQueues = new Map<string, Promise<void>>();
 
   function paths(projectId: string) {
@@ -157,6 +170,17 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
         `${current} contains invalid JSON; restore or repair it.`,
       );
     }
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "schemaVersion" in parsed &&
+      typeof parsed.schemaVersion === "number" &&
+      parsed.schemaVersion > FEEDBACK_SCHEMA_VERSION
+    ) {
+      throw new Error(
+        `${current} was written by a newer ScreenCheck (schema ${parsed.schemaVersion}); update ScreenCheck to read it.`,
+      );
+    }
     const result = feedbackEnvelopeSchema.safeParse(parsed);
     if (!result.success) {
       throw new Error(
@@ -175,7 +199,11 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
   }
 
   async function write(projectId: string, feedback: FeedbackRecord[]) {
-    const envelope = feedbackEnvelopeSchema.parse({ version: 1, feedback });
+    const envelope = feedbackEnvelopeSchema.parse({
+      version: 1,
+      schemaVersion: FEEDBACK_SCHEMA_VERSION,
+      feedback,
+    });
     await writeAtomically(projectId, "feedback.json", envelope);
   }
 
@@ -414,10 +442,42 @@ export function createFeedbackStorage(options: FeedbackStorageOptions) {
         );
       }
       const updatedAt = nextUpdatedAt(now(), current.updatedAt);
-      const { reply, ...patch } = input.patch;
-      const next: Record<string, unknown> = { ...current, ...patch, updatedAt };
-      if (reply === null) delete next.reply;
-      else if (reply) next.reply = { ...reply, at: updatedAt };
+      const { reply, message, ...patch } = input.patch;
+      const statusChange =
+        patch.status && patch.status !== current.status
+          ? { status: patch.status }
+          : {};
+      const thread: FeedbackMessage[] = [...feedbackThread(current)];
+      if (reply === null) {
+        const latest = thread.map((item) => item.role).lastIndexOf("agent");
+        if (latest >= 0) thread.splice(latest, 1);
+      } else if (reply) {
+        thread.push({
+          id: newId(),
+          role: "agent",
+          author: reply.author,
+          note: reply.note,
+          at: updatedAt,
+          ...statusChange,
+        });
+      } else if (message) {
+        thread.push({
+          id: newId(),
+          role: message.role,
+          author:
+            message.author ?? (message.role === "agent" ? "Agent" : "Reviewer"),
+          note: message.note,
+          at: updatedAt,
+          ...statusChange,
+        });
+      }
+      const next: Record<string, unknown> = {
+        ...current,
+        ...patch,
+        thread,
+        updatedAt,
+      };
+      delete next.reply;
       const updated = feedbackRecordSchema.parse(next);
       const nextFeedback = [...feedback];
       nextFeedback[index] = updated;

@@ -152,7 +152,7 @@ describe("feedback API", () => {
     const again = await send("POST", `${base}/import`, { records: [legacy] });
     expect(await again.json()).toEqual({ imported: 0, skipped: 1, invalid: 0 });
     const listed = (await (await fetch(base)).json()).feedback;
-    expect(listed).toEqual([{ ...legacy, projectId: "demo" }]);
+    expect(listed).toEqual([{ ...legacy, projectId: "demo", thread: [] }]);
   });
 });
 

@@ -70,9 +70,7 @@ describe("feedback workflow integration", () => {
       "utf8",
     );
     expect(onDisk).toContain("Keep this action above the fold.");
-    expect(
-      localStorage.getItem("screencheck.feedback.v1:example"),
-    ).toBeNull();
+    expect(localStorage.getItem("screencheck.feedback.v1:example")).toBeNull();
 
     firstRender.unmount();
     render(<App />);
@@ -180,7 +178,9 @@ describe("legacy browser feedback migration", () => {
     render(<App />);
 
     expect(await screen.findByText(legacy.note)).toBeInTheDocument();
-    expect(await api.storage.listFeedback("example")).toEqual([legacy]);
+    expect(await api.storage.listFeedback("example")).toEqual([
+      { ...legacy, thread: [] },
+    ]);
     expect(localStorage.getItem(key)).toBeNull();
   });
 

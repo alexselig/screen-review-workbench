@@ -14,6 +14,7 @@ export const FEEDBACK_STATUSES = [
   "OPEN",
   "IN_PROGRESS",
   "RESOLVED",
+  "VERIFIED",
   "WONT_FIX",
 ] as const;
 
@@ -30,9 +31,16 @@ export const STATUS_LABELS: Record<(typeof FEEDBACK_STATUSES)[number], string> =
     OPEN: "Backlog",
     IN_PROGRESS: "In progress",
     RESOLVED: "Fixed",
+    VERIFIED: "Verified",
     WONT_FIX: "Won't fix",
   };
 export const REPLY_MAX_LENGTH = 2000;
+export const THREAD_MAX_MESSAGES = 500;
+
+// Only a person sets Verified. The browser client sends this header on every
+// mutation; agents, scripts and the MCP server do not.
+export const ACTOR_HEADER = "x-screencheck-actor";
+export const REVIEWER_ACTOR = "reviewer";
 
 // The fixer's answer to a comment (usually an agent): what was done, or why not.
 export const replyInputSchema = z.object({
@@ -44,6 +52,30 @@ export const feedbackReplySchema = z.object({
   author: z.string().trim().min(1).max(64),
   at: z.iso.datetime(),
 });
+
+export const MESSAGE_ROLES = ["reviewer", "agent"] as const;
+export const messageRoleSchema = z.enum(MESSAGE_ROLES);
+
+// One entry in a comment's conversation. `status` is the status change the
+// message was sent with, if any.
+export const feedbackMessageSchema = z.object({
+  id: z.string().min(1),
+  author: z.string().trim().min(1).max(64),
+  role: messageRoleSchema,
+  note: z.string().trim().min(1).max(REPLY_MAX_LENGTH),
+  at: z.iso.datetime(),
+  status: feedbackStatusSchema.optional(),
+});
+
+// A message posted through the API; the server stamps `id` and `at`.
+export const messageInputSchema = z.object({
+  note: z.string().trim().min(1).max(REPLY_MAX_LENGTH),
+  author: z.string().trim().min(1).max(64).optional(),
+  role: messageRoleSchema.optional().default("reviewer"),
+});
+
+// The id given to a pre-thread `reply` when it becomes the first message.
+export const LEGACY_REPLY_MESSAGE_ID = "legacy-reply";
 
 export const normalizedCoordinateSchema = z.number().finite().min(0).max(1);
 
@@ -88,6 +120,33 @@ export function migrateLegacyTags(value: unknown): unknown {
   return { ...rest, tags };
 }
 
+function isRecordObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+// Records saved before threads existed carry a single `reply`; read it as the
+// first (agent) message so nothing on disk has to be rewritten up front.
+export function migrateLegacyThread(value: unknown): unknown {
+  if (!isRecordObject(value) || Array.isArray(value.thread)) return value;
+  const reply = value.reply;
+  const thread = isRecordObject(reply)
+    ? [
+        {
+          id: LEGACY_REPLY_MESSAGE_ID,
+          role: "agent",
+          author: reply.author,
+          note: reply.note,
+          at: reply.at,
+        },
+      ]
+    : [];
+  return { ...value, thread };
+}
+
+function migrateLegacyRecord(value: unknown): unknown {
+  return migrateLegacyThread(migrateLegacyTags(value));
+}
+
 const feedbackRecordObjectSchema = z.object({
   id: z.string().min(1),
   projectId: z.string().min(1),
@@ -98,14 +157,18 @@ const feedbackRecordObjectSchema = z.object({
   note: z.string().trim().min(1),
   tags: feedbackTagsSchema,
   status: feedbackStatusSchema,
+  // Derived from `thread` (the latest agent message) for older clients.
   reply: feedbackReplySchema.optional(),
+  // Optional in the type so hand-built records stay valid; parsing always
+  // fills it. Read it through `feedbackThread`.
+  thread: z.array(feedbackMessageSchema).max(THREAD_MAX_MESSAGES).optional(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
 
 export const feedbackRecordSchema = z.preprocess(
-  migrateLegacyTags,
-  feedbackRecordObjectSchema,
+  migrateLegacyRecord,
+  feedbackRecordObjectSchema.transform(withDerivedReply),
 );
 
 export const createFeedbackInputSchema = z.object({
@@ -124,13 +187,23 @@ export const feedbackPatchSchema = z
     note: z.string().trim().min(1).optional(),
     tags: feedbackTagsSchema.optional(),
     status: feedbackStatusSchema.optional(),
-    // null clears the reply; the server stamps `at`.
+    // Appends an agent message; null removes the latest agent message.
     reply: replyInputSchema.nullable().optional(),
+    // Appends a message (reviewer unless `role` says otherwise).
+    message: messageInputSchema.optional(),
   })
   .superRefine((patch, context) => {
+    if (patch.reply !== undefined && patch.message !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["message"],
+        message: "Send either reply or message, not both.",
+      });
+    }
     if (
       (patch.status === "RESOLVED" || patch.status === "WONT_FIX") &&
-      !patch.reply
+      !patch.reply &&
+      !patch.message
     ) {
       context.addIssue({
         code: "custom",
@@ -154,6 +227,8 @@ export type CreateFeedbackInput = z.input<typeof createFeedbackInputSchema>;
 export type UpdateFeedbackInput = z.infer<typeof updateFeedbackInputSchema>;
 export type FeedbackReply = z.infer<typeof feedbackReplySchema>;
 export type FeedbackPatch = z.infer<typeof feedbackPatchSchema>;
+export type FeedbackMessage = z.infer<typeof feedbackMessageSchema>;
+export type MessageRole = z.infer<typeof messageRoleSchema>;
 
 export type FrameRect = {
   left: number;
@@ -186,6 +261,50 @@ export function priorityTag(tags: readonly string[]): PriorityTag | null {
     if (tags.includes(priority)) return priority;
   }
   return null;
+}
+
+type ThreadSource = {
+  reply?: FeedbackReply;
+  thread?: FeedbackMessage[];
+};
+
+// The conversation on a comment, oldest first. Hand-built records that only
+// carry a `reply` read as a one-message thread.
+export function feedbackThread(record: ThreadSource): FeedbackMessage[] {
+  if (record.thread) return record.thread;
+  return record.reply
+    ? [
+        {
+          id: LEGACY_REPLY_MESSAGE_ID,
+          role: "agent",
+          author: record.reply.author,
+          note: record.reply.note,
+          at: record.reply.at,
+        },
+      ]
+    : [];
+}
+
+// The latest agent message, in the shape of the pre-thread `reply` field.
+export function latestAgentReply(
+  thread: readonly FeedbackMessage[],
+): FeedbackReply | undefined {
+  for (let index = thread.length - 1; index >= 0; index -= 1) {
+    const message = thread[index]!;
+    if (message.role === "agent") {
+      return { note: message.note, author: message.author, at: message.at };
+    }
+  }
+  return undefined;
+}
+
+function withDerivedReply<
+  T extends { reply?: FeedbackReply; thread?: FeedbackMessage[] },
+>(record: T): T {
+  const thread = record.thread ?? [];
+  const { reply: _stale, ...rest } = record;
+  const reply = latestAgentReply(thread);
+  return { ...rest, thread, ...(reply ? { reply } : {}) } as T;
 }
 
 export function isOpenFeedback(feedback: FeedbackRecord): boolean {

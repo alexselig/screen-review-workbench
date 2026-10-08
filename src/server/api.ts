@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { z } from "zod";
 
+import { elementMapSchema } from "../shared/elements";
 import {
   assertMutationOrigin,
   isLoopbackHostHeader,
@@ -68,6 +69,9 @@ const ROUTE =
 const CAPTURE_ROUTE =
   /^\/api\/projects\/([^/]+)\/captures\/([^/]+)\/([^/]+)\/?$/;
 
+const ELEMENTS_ROUTE =
+  /^\/api\/projects\/([^/]+)\/elements\/([^/]+)\/([^/]+)\/?$/;
+
 const APPROVALS_ROUTE = /^\/api\/projects\/([^/]+)\/approvals\/?$/;
 
 const CAPTIONS_ROUTE = /^\/api\/projects\/([^/]+)\/captions\/?$/;
@@ -113,6 +117,31 @@ export async function handleApi(
         "x-content-type-options": "nosniff",
       });
       file.open().pipe(response);
+      return true;
+    }
+    const elements = ELEMENTS_ROUTE.exec(url.pathname);
+    if (elements && catalog) {
+      if (request.method !== "GET")
+        throw new HttpError(405, "Method not allowed.");
+      const [projectId, version, screenId] = elements
+        .slice(1)
+        .map((part) => decodeURIComponent(part!));
+      const text = await catalog.elements(projectId!, version!, screenId!);
+      if (text === null) throw new HttpError(404, "Element map not found.");
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new HttpError(500, "Element map is not valid JSON.");
+      }
+      const map = elementMapSchema.safeParse(parsed);
+      if (!map.success) {
+        throw new HttpError(
+          500,
+          `Element map is malformed: ${map.error.issues[0]?.path.join(".") || "root"} ${map.error.issues[0]?.message ?? ""}`.trim(),
+        );
+      }
+      sendJson(response, 200, map.data);
       return true;
     }
     const approvals = APPROVALS_ROUTE.exec(url.pathname);

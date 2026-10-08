@@ -169,6 +169,36 @@ describe("feedback replies", () => {
     ).not.toHaveProperty("reply");
   });
 
+  it("lists Verified comments by name and won't set Verified itself", async () => {
+    const item = await create("Header overlaps.");
+    const fixed = await (
+      await send("PATCH", `${base}/${item.id}`, {
+        expectedUpdatedAt: item.updatedAt,
+        patch: { status: "RESOLVED", reply: { note: "Fixed the z-index." } },
+      })
+    ).json();
+    const verified = await fetch(`${base}/${item.id}`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        origin,
+        "x-screencheck-actor": "reviewer",
+      },
+      body: JSON.stringify({
+        expectedUpdatedAt: fixed.feedback.updatedAt,
+        patch: { status: "VERIFIED" },
+      }),
+    });
+    expect(verified.status).toBe(200);
+
+    expect((await cli("--list", "--all")).out).toMatch(
+      new RegExp(`${item.id}\t.*\tVerified\t`),
+    );
+    await expect(
+      cli("--id", item.id, "--note", "x", "--status", "verified"),
+    ).rejects.toThrow("Only a reviewer can mark a comment Verified.");
+  });
+
   it("explains bad CLI input", async () => {
     const item = await create("Note");
     await expect(cli("--id", item.id)).rejects.toThrow("--note is required");

@@ -5,6 +5,7 @@
 //   screencheck reply --project shop --id <id> --status fixed \
 //     --note "Moved the footer below the fold." [--author Copilot]
 import { resolveOrigin, type RuntimeInfo } from "../server/runtime";
+import { STATUS_LABELS, type FeedbackStatus } from "../shared/feedback";
 
 type Status = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "WONT_FIX";
 
@@ -12,7 +13,7 @@ type FeedbackItem = {
   id: string;
   version: string;
   screenId: string;
-  status: Status;
+  status: FeedbackStatus;
   tags: string[];
   note: string;
   createdAt: string;
@@ -45,12 +46,13 @@ const STATUS_ALIASES: Record<string, Status> = {
   "won't-fix": "WONT_FIX",
 };
 
-const LABELS: Record<Status, string> = {
-  OPEN: "Backlog",
-  IN_PROGRESS: "In progress",
-  RESOLVED: "Fixed",
-  WONT_FIX: "Won't fix",
-};
+const AGENT_STATUSES: readonly Status[] = [
+  "OPEN",
+  "IN_PROGRESS",
+  "RESOLVED",
+  "WONT_FIX",
+];
+const LABELS = STATUS_LABELS;
 
 const FLAGS = new Set(["list", "all", "clear", "help"]);
 
@@ -84,7 +86,10 @@ export function parseReplyArgs(argv: string[]): ReplyOptions {
 
 export function normalizeStatus(value: string | undefined) {
   if (value === undefined) return undefined;
-  if (Object.hasOwn(LABELS, value)) return value as Status;
+  if ((AGENT_STATUSES as readonly string[]).includes(value))
+    return value as Status;
+  if (value.toLowerCase() === "verified")
+    throw new Error("Only a reviewer can mark a comment Verified.");
   const status = STATUS_ALIASES[value.toLowerCase()];
   if (!status) throw new Error(`Unknown status: ${value}`);
   return status;

@@ -489,14 +489,72 @@ describe("MCP server", () => {
     });
   });
 
+  it("names the element under the pin and shows the whole thread", async () => {
+    await writeFile(
+      join(root, "captures", "v1", "home.elements.json"),
+      JSON.stringify({
+        version: 1,
+        capture: { width: 1600, height: 1200 },
+        elements: [
+          { box: { x: 0, y: 0, w: 1, h: 1 }, tag: "main", selector: "main" },
+          {
+            box: { x: 0.7, y: 0.45, w: 0.1, h: 0.1 },
+            role: "button",
+            name: "Continue",
+            tag: "button",
+            selector: "main > button",
+            source: { file: "src/Footer.tsx", line: 42 },
+          },
+        ],
+      }),
+    );
+    const [a3] = (await feedback()).filter((item) => item.id === "a3");
+    await api("PATCH", "/api/projects/demo/feedback/a3", {
+      expectedUpdatedAt: a3!.updatedAt,
+      patch: { message: { note: "Still clipped on mobile.", author: "Alex" } },
+    });
+    const client = await connect();
+
+    const a1 = await call(client, "get_comment", { id: "a1" });
+    expect(text(a1)).toContain(
+      'Element under the pin: button "Continue" (src/Footer.tsx:42)',
+    );
+    expect(a1.structuredContent!.comment.element).toMatchObject({
+      tag: "button",
+      source: { file: "src/Footer.tsx", line: 42 },
+    });
+
+    const withThread = await call(client, "get_comment", { id: "a3" });
+    expect(text(withThread)).toMatch(
+      /Thread:\n {2}Agent \(Agent, .*\): Done\./,
+    );
+    expect(text(withThread)).toMatch(
+      /\n {2}Reviewer \(Alex, .*\): Still clipped on mobile\./,
+    );
+    expect(withThread.structuredContent!.comment.thread).toHaveLength(2);
+
+    const read = await client.readResource({
+      uri: "screencheck://project/demo/feedback.md",
+    });
+    expect((read.contents[0] as { text: string }).text).toContain(
+      '  - Element: button "Continue" \\(src/Footer.tsx:42\\)',
+    );
+  });
+
   it("summarizes approvals and open comments by priority", async () => {
     const client = await connect();
     const v1 = await call(client, "approval_status", { version: "v1" });
     expect(v1.structuredContent!.summary).toBe(
-      "1/2 approved, 3 open (2 P0, 1 P1)",
+      "1/2 approved, 3 open (2 P0, 1 P1), 1 fixed awaiting verification",
     );
+    expect(v1.structuredContent!.unverified).toBe(1);
     expect(v1.structuredContent!.screens).toMatchObject([
-      { id: "home", approved: false, open: { total: 2, P0: 1, P1: 1 } },
+      {
+        id: "home",
+        approved: false,
+        open: { total: 2, P0: 1, P1: 1 },
+        unverified: 1,
+      },
       { id: "checkout", approved: true, open: { total: 1, P0: 1 } },
     ]);
     const latest = await call(client, "approval_status", {});

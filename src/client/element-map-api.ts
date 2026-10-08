@@ -3,6 +3,7 @@ import {
   elementMapSchema,
   type ElementMap,
 } from "../shared/elements";
+import { elementMapUrl } from "../shared/projects";
 
 // One request per project/version/screen. A missing map is a normal state
 // (older captures have none), so every failure resolves to null.
@@ -16,7 +17,7 @@ export function fetchElementMap(
   const key = `${projectId}\0${elementMapKey(version, screenId)}`;
   const cached = cache.get(key);
   if (cached) return cached;
-  const url = `/api/projects/${encodeURIComponent(projectId)}/elements/${encodeURIComponent(version)}/${encodeURIComponent(screenId)}`;
+  const url = elementMapUrl(projectId, version, screenId);
   const pending = (async () => {
     try {
       const response = await fetch(url);

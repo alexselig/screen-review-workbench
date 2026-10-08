@@ -26,3 +26,11 @@ export function captureUrl(
 ) {
   return `/api/projects/${encodeURIComponent(projectId)}/captures/${encodeURIComponent(version)}/${encodeURIComponent(screenId)}`;
 }
+
+export function elementMapUrl(
+  projectId: string,
+  version: string,
+  screenId: string,
+) {
+  return `/api/projects/${encodeURIComponent(projectId)}/elements/${encodeURIComponent(version)}/${encodeURIComponent(screenId)}`;
+}

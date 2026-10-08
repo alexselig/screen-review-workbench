@@ -9,6 +9,12 @@ import { z } from "zod";
 import { isApproved } from "../shared/approvals";
 import { captionFor } from "../shared/captions";
 import {
+  describeElement,
+  elementMapKey,
+  resolvePinElement,
+  type ElementMap,
+} from "../shared/elements";
+import {
   PRIORITY_TAGS,
   priorityTag,
   REPLY_MAX_LENGTH,
@@ -230,6 +236,15 @@ function describeOpen(counts: Record<string, number>) {
     (priority) => `${counts[priority]} ${priority}`,
   );
   return `${counts.total} open${parts.length ? ` (${parts.join(", ")})` : ""}`;
+}
+
+// Fixed by an agent but not yet checked by a reviewer.
+function unverifiedFixes(feedback: readonly { status: string }[]) {
+  return feedback.filter((item) => item.status === "RESOLVED").length;
+}
+
+function describeUnverified(count: number) {
+  return count ? `, ${count} fixed awaiting verification` : "";
 }
 
 function screenInfo(screen: PublicScreen | undefined) {
@@ -504,11 +519,16 @@ export function createMcpServer(options: McpServerOptions = {}): McpServer {
         ) ??
         screen?.description ??
         null;
-      const capture = await api.capture(
-        project.id,
-        record.version,
-        record.screenId,
-      );
+      const [capture, elementMap] = await Promise.all([
+        api.capture(project.id, record.version, record.screenId),
+        api
+          .elementMap(project.id, record.version, record.screenId)
+          .catch(() => null),
+      ]);
+      const mapped = resolvePinElement(elementMap, record);
+      const element = mapped
+        ? { ...mapped, description: describeElement(mapped) }
+        : null;
       const image = capture
         ? await renderPinImage(capture.data, record, {
             full: args.fullCapture,
@@ -521,12 +541,14 @@ export function createMcpServer(options: McpServerOptions = {}): McpServer {
         `Note: ${record.note}`,
       ];
       if (caption) lines.push(`Screen shows: ${caption}`);
-      if (Array.isArray(record.thread) && record.thread.length) {
-        lines.push(
-          `Thread: ${record.thread.length} messages (see structured content).`,
-        );
-      }
-      if (comment.latestReply) {
+      if (element) lines.push(`Element under the pin: ${element.description}`);
+      const thread: ThreadMessage[] = Array.isArray(record.thread)
+        ? (record.thread as ThreadMessage[])
+        : [];
+      if (thread.length) {
+        lines.push("Thread:");
+        for (const message of thread) lines.push(`  ${threadLine(message)}`);
+      } else if (comment.latestReply) {
         lines.push(
           `Reply (${comment.latestReply.author || "unknown"}, ${comment.latestReply.at}): ${comment.latestReply.note}`,
         );
@@ -550,7 +572,7 @@ export function createMcpServer(options: McpServerOptions = {}): McpServer {
           ...comment,
           reply: record.reply ?? null,
           ...(record.thread !== undefined ? { thread: record.thread } : {}),
-          ...(record.element !== undefined ? { element: record.element } : {}),
+          element,
         },
         screen: { ...screenInfo(screen), id: record.screenId, caption },
         image: image
@@ -690,15 +712,19 @@ export function createMcpServer(options: McpServerOptions = {}): McpServer {
         open: openByPriority(
           inVersion.filter((item) => item.screenId === screen.id),
         ),
+        unverified: unverifiedFixes(
+          inVersion.filter((item) => item.screenId === screen.id),
+        ),
       }));
       const approved = screens.filter((screen) => screen.approved).length;
       const totals = openByPriority(inVersion);
-      const summary = `${approved}/${screens.length} approved, ${describeOpen(totals)}`;
+      const unverified = unverifiedFixes(inVersion);
+      const summary = `${approved}/${screens.length} approved, ${describeOpen(totals)}${describeUnverified(unverified)}`;
       const lines = [
         `${project.id} / ${version}: ${summary}`,
         ...screens.map(
           (screen) =>
-            `  ${String(screen.ordinal).padStart(2, "0")} ${screen.title}: ${screen.approved ? "approved" : "not approved"}, ${describeOpen(screen.open)}`,
+            `  ${String(screen.ordinal).padStart(2, "0")} ${screen.title}: ${screen.approved ? "approved" : "not approved"}, ${describeOpen(screen.open)}${describeUnverified(screen.unverified)}`,
         ),
       ];
       return textResult(lines.join("\n"), {
@@ -708,6 +734,7 @@ export function createMcpServer(options: McpServerOptions = {}): McpServer {
         approved,
         total: screens.length,
         open: totals,
+        unverified,
         screens,
       });
     }),
@@ -740,6 +767,21 @@ export function createMcpServer(options: McpServerOptions = {}): McpServer {
       const id = decodeURIComponent(String(variables.id));
       const project = pickProject(await projects(), id);
       const feedback = asFeedbackRecords(await api.listFeedback(project.id));
+      const elements: Record<string, ElementMap> = {};
+      const pairs = new Map(
+        feedback.map((item) => [
+          elementMapKey(item.version, item.screenId),
+          item,
+        ]),
+      );
+      await Promise.all(
+        [...pairs].map(async ([key, item]) => {
+          const map = await api
+            .elementMap(project.id, item.version, item.screenId)
+            .catch(() => null);
+          if (map) elements[key] = map;
+        }),
+      );
       return {
         contents: [
           {
@@ -749,6 +791,7 @@ export function createMcpServer(options: McpServerOptions = {}): McpServer {
               projectId: project.id,
               screens: project.screens,
               feedback,
+              elements,
             }),
           },
         ],
@@ -795,6 +838,20 @@ Do not try to verify or approve anything; the reviewer does that.`,
   );
 
   return server;
+}
+
+type ThreadMessage = {
+  author?: string;
+  role?: string;
+  note?: string;
+  at?: string;
+  status?: string;
+};
+
+function threadLine(message: ThreadMessage) {
+  const who = message.role === "reviewer" ? "Reviewer" : "Agent";
+  const status = message.status ? ` -> ${statusLabel(message.status)}` : "";
+  return `${who} (${message.author || "unknown"}, ${message.at ?? ""})${status}: ${message.note ?? ""}`;
 }
 
 export async function runMcpServer(

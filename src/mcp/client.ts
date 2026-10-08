@@ -4,7 +4,8 @@ import type { ScreenApproval } from "../shared/approvals";
 import type { ScreenCaption } from "../shared/captions";
 import type { FeedbackReply } from "../shared/feedback";
 import type { ProjectList } from "../shared/projects";
-import { captureUrl } from "../shared/projects";
+import { elementMapSchema, type ElementMap } from "../shared/elements";
+import { captureUrl, elementMapUrl } from "../shared/projects";
 
 export const NOT_RUNNING_MESSAGE =
   "ScreenCheck isn't running — start it with `npm run dev` (or `screencheck serve`).";
@@ -159,6 +160,20 @@ export function createApiClient({
           `/api/projects/${encodeURIComponent(projectId)}/captions`,
         )
       ).captions;
+    },
+    // Null when the capture has no element map (older captures, or a map
+    // that fails the schema); the pin then simply names no element.
+    async elementMap(
+      projectId: string,
+      version: string,
+      screenId: string,
+    ): Promise<ElementMap | null> {
+      const response = await send(elementMapUrl(projectId, version, screenId));
+      if (!response.ok) return null;
+      const parsed = elementMapSchema.safeParse(
+        await response.json().catch(() => null),
+      );
+      return parsed.success ? parsed.data : null;
     },
     // Null when the version has no capture for this screen.
     async capture(projectId: string, version: string, screenId: string) {

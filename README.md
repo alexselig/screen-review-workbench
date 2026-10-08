@@ -152,6 +152,69 @@ Markdown exports list each comment's `id` so the agent can address it; if the
 reviewer edits a comment at the same moment, the script re-reads and retries
 once.
 
+## MCP server
+
+Agents that speak MCP (Copilot CLI, Claude Code, VS Code) can read and answer
+feedback directly. The MCP server runs on stdio and is a thin client over the
+HTTP API above: it never reads feedback files itself, and it only talks to a
+ScreenCheck on loopback (`127.0.0.1`, `localhost` or `[::1]`).
+
+It finds the running server on its own: `--url`, then `SCREENCHECK_URL`, then
+`~/.screencheck/server.json` (written by `npm run dev`), then port 4173. It
+looks this up on every call, so it can start before ScreenCheck does; until
+then each tool says ScreenCheck isn't running.
+
+| Tool              | What it does                                                                                                                                                   |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list_projects`   | Projects, versions and screens, with open-comment counts                                                                                                       |
+| `list_feedback`   | Comments with pin number, screen, status, tags, note, latest reply and pin position. Filters: `project`, `version`, `screen`, `status`, `tag`, `includeClosed` |
+| `get_comment`     | One comment in full, the screen's caption, and a crop of the capture around the pin with the pin circled (`fullCapture: true` for the whole screen)            |
+| `reply`           | Answer a comment (`note`) and optionally set `status`; retries once if the reviewer edited it meanwhile                                                        |
+| `set_status`      | Change status without a note (closing as fixed or won't fix still needs `reply`)                                                                               |
+| `approval_status` | Per-screen approval and open comments by priority for a version, e.g. `7/9 approved, 3 open (1 P0)`                                                            |
+
+Statuses take the friendly names `backlog`, `in-progress`, `fixed` and
+`wont-fix`. Agents can't set `verified`; only a reviewer can. Each project's
+Markdown export is also a resource (`screencheck://project/<id>/feedback.md`),
+and the `fix_open_feedback` prompt walks an agent through the open P0 and P1
+comments. Replies are signed `Agent` unless the tool call passes `author` or
+the server is started with `--author <name>` (or `SCREENCHECK_AUTHOR`).
+
+**Copilot CLI** (`~/.copilot/mcp-config.json`):
+
+```json
+{
+  "mcpServers": {
+    "screencheck": {
+      "type": "local",
+      "command": "npx",
+      "args": ["tsx", "/path/to/screencheck/src/mcp/main.ts"],
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+**Claude Code:**
+
+```bash
+claude mcp add screencheck -- npx tsx /path/to/screencheck/src/mcp/main.ts
+```
+
+**VS Code** (`.vscode/mcp.json`):
+
+```json
+{
+  "servers": {
+    "screencheck": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["tsx", "/path/to/screencheck/src/mcp/main.ts"]
+    }
+  }
+}
+```
+
 ## Register a project
 
 Each project is one JSON file in `~/.screencheck/projects/` (or

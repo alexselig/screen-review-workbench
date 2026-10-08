@@ -60,13 +60,14 @@ describe("screen caption", () => {
 
   it("Escape cancels without saving", async () => {
     render(<App />);
+    const before = (await captionButton()).textContent;
     fireEvent.click(await captionButton());
     const input = screen.getByRole("textbox", { name: "Showing" });
     fireEvent.change(input, { target: { value: "Throwaway" } });
     fireEvent.keyDown(input, { key: "Escape" });
-    expect(screen.getByTestId("screen-caption")).toHaveTextContent(
-      /describe what this screenshot shows/i,
-    );
+    const after = screen.getByTestId("screen-caption");
+    expect(after.textContent).toBe(before);
+    expect(after).not.toHaveTextContent("Throwaway");
     expect(await api.storage.listCaptions("example")).toEqual([]);
   });
 

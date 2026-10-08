@@ -67,7 +67,7 @@ async function writeRegistration(projectsRoot, captureRoot) {
 function startServer(dataRoot, projectsRoot) {
   const child = spawn(
     path.join(ROOT, "node_modules/.bin/tsx"),
-    ["src/server/index.ts"],
+    ["src/server/main.ts"],
     {
       cwd: ROOT,
       env: {

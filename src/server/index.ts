@@ -5,14 +5,13 @@ import {
 } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
-import { createServer as createViteServer } from "vite";
 
 import { handleApi, sendJson as json } from "./api";
 import { appHome } from "./home";
 import { createProjectCatalog, defaultProjectsRoot } from "./projects";
 import { assertLoopbackHost, LOOPBACK_HOST } from "./origin";
 import { clearRuntimeInfo, writeRuntimeInfo } from "./runtime";
+import { createStaticHandler } from "./static";
 import { sharedFeedbackStorage } from "./storage";
 
 export type ServerOptions = {
@@ -20,7 +19,35 @@ export type ServerOptions = {
   port?: number;
   dataRoot?: string;
   projectsRoot?: string;
+  // A built client (dist/client). When set, the server serves it as static
+  // files and never loads Vite; without it, Vite runs in middleware mode.
+  clientRoot?: string;
 };
+
+type Fallback = (
+  request: IncomingMessage,
+  response: ServerResponse,
+  port: number,
+) => void | Promise<void>;
+
+async function createFallback(
+  clientRoot?: string,
+): Promise<{ handle: Fallback; close?: () => Promise<void> }> {
+  if (clientRoot) {
+    return { handle: await createStaticHandler(clientRoot) };
+  }
+  // Imported lazily so the published package never needs Vite at runtime.
+  const { createServer: createViteServer } = await import("vite");
+  const vite = await createViteServer({
+    server: { middlewareMode: true },
+    appType: "spa",
+  });
+  const handle: Fallback = (request, response) =>
+    vite.middlewares(request, response, () => {
+      json(response, 404, { error: "not found" });
+    });
+  return { handle, close: () => vite.close() };
+}
 
 export function defaultDataRoot() {
   return (
@@ -35,6 +62,7 @@ export async function startServer({
   port = 4173,
   dataRoot = defaultDataRoot(),
   projectsRoot = defaultProjectsRoot(),
+  clientRoot,
 }: ServerOptions = {}) {
   assertLoopbackHost(host);
   const storage = sharedFeedbackStorage(dataRoot);
@@ -44,10 +72,7 @@ export async function startServer({
       (await storage.listFeedback(projectId)).length > 0,
   });
   let boundPort = port;
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa",
-  });
+  const fallback = await createFallback(clientRoot);
   const server = createServer(
     async (request: IncomingMessage, response: ServerResponse) => {
       if (request.url === "/healthz") {
@@ -62,9 +87,7 @@ export async function startServer({
         })
       )
         return;
-      vite.middlewares(request, response, () => {
-        json(response, 404, { error: "not found" });
-      });
+      await fallback.handle(request, response, boundPort);
     },
   );
   await new Promise<void>((resolve, reject) => {
@@ -76,8 +99,9 @@ export async function startServer({
     origin: `http://${host}:${boundPort}`,
     dataRoot,
     projectsRoot,
+    mode: clientRoot ? ("static" as const) : ("dev" as const),
     async close() {
-      await vite.close();
+      await fallback.close?.();
       await new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
       });
@@ -85,10 +109,10 @@ export async function startServer({
   };
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
-  const running = await startServer({
-    port: Number(process.env.PORT ?? "4173"),
-  });
+// Starts the server for interactive use: logs where it lives and records it
+// in ~/.screencheck/server.json so the CLI and MCP server can find it.
+export async function serve(options: ServerOptions = {}) {
+  const running = await startServer(options);
   console.log(`ScreenCheck: ${running.origin}`);
   console.log(`Feedback stored in: ${running.dataRoot}`);
   console.log(`Projects read from: ${running.projectsRoot}`);
@@ -103,4 +127,5 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.on(signal, () => process.exit(0));
   }
+  return running;
 }

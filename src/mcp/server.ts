@@ -1,0 +1,805 @@
+import {
+  McpServer,
+  ResourceTemplate,
+} from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { z } from "zod";
+
+import { isApproved } from "../shared/approvals";
+import { captionFor } from "../shared/captions";
+import {
+  PRIORITY_TAGS,
+  priorityTag,
+  REPLY_MAX_LENGTH,
+  type FeedbackRecord,
+} from "../shared/feedback";
+import { createPinNumbers, serializeMarkdown } from "../shared/export";
+import type { PublicProject, PublicScreen } from "../shared/projects";
+import {
+  ApiError,
+  createApiClient,
+  ToolError,
+  type ApiClient,
+  type ApiFeedback,
+} from "./client";
+import { renderPinImage } from "./crop";
+import {
+  isClosingStatus,
+  isOpenStatus,
+  isReviewerOnlyStatus,
+  statusLabel,
+  toApiStatus,
+} from "./status";
+
+export type McpServerOptions = {
+  origin?: string;
+  fetchImpl?: typeof fetch;
+  author?: string;
+};
+
+const VERSION = "0.1.0";
+
+const INSTRUCTIONS = `ScreenCheck holds design-review feedback: numbered pins on screen captures, each with a note, tags (P0/P1/P2 priority plus free text) and a status.
+Typical loop: list_feedback to see open comments, get_comment for the note and a crop of the capture around the pin, fix the code, then reply with what you did and status "fixed" (or "wont-fix" with the reason).
+Only a reviewer can verify a fix or approve a screen.`;
+
+const STATUS_HELP =
+  "backlog, in-progress, fixed or wont-fix (API values like RESOLVED also work)";
+
+type Comment = ReturnType<typeof summarize>;
+
+function percent(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function oneLine(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function asFeedbackRecords(feedback: ApiFeedback[]) {
+  return feedback as unknown as FeedbackRecord[];
+}
+
+// The newest answer on a comment: the last thread message once threads
+// exist, otherwise the single reply.
+function latestReply(record: ApiFeedback) {
+  if (Array.isArray(record.thread) && record.thread.length > 0) {
+    const last = record.thread.at(-1) as Record<string, unknown>;
+    const note = last.note ?? last.text ?? last.body;
+    if (typeof note === "string") {
+      return {
+        note,
+        author: typeof last.author === "string" ? last.author : "",
+        at: typeof last.at === "string" ? last.at : "",
+      };
+    }
+  }
+  return record.reply ?? null;
+}
+
+function summarize(
+  record: ApiFeedback,
+  project: PublicProject,
+  pinNumbers: Map<string, number>,
+) {
+  const screen = project.screens.find((item) => item.id === record.screenId);
+  return {
+    id: record.id,
+    project: project.id,
+    version: record.version,
+    screen: {
+      id: record.screenId,
+      title: screen?.title ?? record.screenId,
+      ordinal: screen?.ordinal ?? null,
+    },
+    pin: pinNumbers.get(record.id) ?? 0,
+    status: record.status,
+    statusLabel: statusLabel(record.status),
+    tags: record.tags,
+    priority: priorityTag(record.tags),
+    note: record.note,
+    position: { x: record.x, y: record.y },
+    latestReply: latestReply(record),
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
+}
+
+function screenLabel(comment: Comment) {
+  const ordinal =
+    comment.screen.ordinal === null
+      ? ""
+      : `${String(comment.screen.ordinal).padStart(2, "0")} `;
+  return `${comment.version} / ${ordinal}${comment.screen.title}`;
+}
+
+function formatComment(comment: Comment) {
+  const tags = comment.tags.length ? ` · ${comment.tags.join(", ")}` : "";
+  const lines = [
+    `Pin ${comment.pin} on ${screenLabel(comment)}${tags} · ${comment.statusLabel} · at (${percent(comment.position.x)}, ${percent(comment.position.y)}) · id ${comment.id}`,
+    `  ${oneLine(comment.note)}`,
+  ];
+  if (comment.latestReply) {
+    lines.push(
+      `  Reply (${comment.latestReply.author || "unknown"}): ${oneLine(comment.latestReply.note)}`,
+    );
+  }
+  return lines.join("\n");
+}
+
+function textResult(
+  text: string,
+  structuredContent: Record<string, unknown>,
+): CallToolResult {
+  return { content: [{ type: "text", text }], structuredContent };
+}
+
+function errorResult(message: string): CallToolResult {
+  return { content: [{ type: "text", text: message }], isError: true };
+}
+
+// Every tool reports failures as a tool error the agent can read, never as a
+// protocol error.
+function guarded<A>(handler: (args: A) => Promise<CallToolResult>) {
+  return async (args: A): Promise<CallToolResult> => {
+    try {
+      return await handler(args);
+    } catch (error) {
+      return errorResult(
+        error instanceof Error ? error.message : "ScreenCheck request failed.",
+      );
+    }
+  };
+}
+
+function pickProject(projects: PublicProject[], id?: string) {
+  const ids = projects.map((item) => item.id).join(", ");
+  if (id) {
+    const project = projects.find((item) => item.id === id);
+    if (!project)
+      throw new ToolError(`Unknown project "${id}". Projects: ${ids}.`);
+    return project;
+  }
+  if (projects.length === 1) return projects[0]!;
+  throw new ToolError(
+    projects.length === 0
+      ? "No projects are registered."
+      : `Several projects are registered; pass project (one of ${ids}).`,
+  );
+}
+
+function pickVersion(project: PublicProject, version?: string) {
+  if (!version) return undefined;
+  if (!project.versions.includes(version)) {
+    throw new ToolError(
+      `Project ${project.id} has no version "${version}". Versions: ${project.versions.join(", ")}.`,
+    );
+  }
+  return version;
+}
+
+// Matches a screen by id, then by its number in the index, then by title.
+function pickScreen(project: PublicProject, value?: string) {
+  if (!value) return undefined;
+  const wanted = value.trim();
+  const screen =
+    project.screens.find((item) => item.id === wanted) ??
+    (/^\d+$/.test(wanted)
+      ? project.screens.find((item) => item.ordinal === Number(wanted))
+      : undefined) ??
+    project.screens.find(
+      (item) => item.title.toLowerCase() === wanted.toLowerCase(),
+    );
+  if (!screen) {
+    throw new ToolError(
+      `Project ${project.id} has no screen "${value}". Screens: ${project.screens.map((item) => item.id).join(", ")}.`,
+    );
+  }
+  return screen;
+}
+
+function compareComments(project: PublicProject) {
+  const versionIndex = (version: string) => {
+    const index = project.versions.indexOf(version);
+    return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+  };
+  return (left: Comment, right: Comment) =>
+    versionIndex(left.version) - versionIndex(right.version) ||
+    (left.screen.ordinal ?? Number.MAX_SAFE_INTEGER) -
+      (right.screen.ordinal ?? Number.MAX_SAFE_INTEGER) ||
+    left.screen.id.localeCompare(right.screen.id) ||
+    left.pin - right.pin;
+}
+
+function openByPriority(records: ApiFeedback[]) {
+  const counts: Record<string, number> = { total: 0 };
+  for (const priority of PRIORITY_TAGS) counts[priority] = 0;
+  counts.untagged = 0;
+  for (const record of records) {
+    if (!isOpenStatus(record.status)) continue;
+    counts.total! += 1;
+    const priority = priorityTag(record.tags);
+    counts[priority ?? "untagged"]! += 1;
+  }
+  return counts;
+}
+
+function describeOpen(counts: Record<string, number>) {
+  const parts = PRIORITY_TAGS.filter((priority) => counts[priority]).map(
+    (priority) => `${counts[priority]} ${priority}`,
+  );
+  return `${counts.total} open${parts.length ? ` (${parts.join(", ")})` : ""}`;
+}
+
+function screenInfo(screen: PublicScreen | undefined) {
+  return screen
+    ? {
+        id: screen.id,
+        title: screen.title,
+        ordinal: screen.ordinal,
+        group: screen.group,
+      }
+    : null;
+}
+
+export function createMcpServer(options: McpServerOptions = {}): McpServer {
+  const api: ApiClient = createApiClient(options);
+  const defaultAuthor = options.author ?? "Agent";
+  const server = new McpServer(
+    { name: "screencheck", version: VERSION },
+    { instructions: INSTRUCTIONS },
+  );
+
+  async function projects() {
+    return (await api.listProjects()).projects;
+  }
+
+  async function findComment(id: string, projectId?: string) {
+    const all = await projects();
+    const candidates = projectId ? [pickProject(all, projectId)] : all;
+    for (const project of candidates) {
+      const feedback = await api.listFeedback(project.id);
+      const record = feedback.find((item) => item.id === id);
+      if (record) return { project, feedback, record };
+    }
+    throw new ToolError(
+      `No comment with id ${id}${projectId ? ` in project ${projectId}` : ""}. Use list_feedback to find ids.`,
+    );
+  }
+
+  // Re-reads and retries once if the reviewer edited the comment meanwhile.
+  async function patchComment(
+    projectId: string,
+    current: ApiFeedback,
+    patch: Record<string, unknown>,
+  ) {
+    let record = current;
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        return await api.patchFeedback(
+          projectId,
+          record.id,
+          record.updatedAt,
+          patch,
+        );
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 409) throw error;
+        const fresh = (await api.listFeedback(projectId)).find(
+          (item) => item.id === record.id,
+        );
+        if (!fresh) throw new ToolError(`Comment ${record.id} was deleted.`);
+        record = fresh;
+      }
+    }
+    throw new ToolError("The comment kept changing; try again.");
+  }
+
+  function agentStatus(value: string | undefined) {
+    if (value === undefined) return undefined;
+    const status = toApiStatus(value);
+    if (isReviewerOnlyStatus(status)) {
+      throw new ToolError(
+        `Only a reviewer can set "${statusLabel(status)}": it records that a person checked the fix on screen. Reply with status "fixed" and say what you changed; the reviewer verifies it.`,
+      );
+    }
+    return status;
+  }
+
+  async function updated(projectId: string, record: ApiFeedback) {
+    const all = await projects();
+    const project = pickProject(all, projectId);
+    const feedback = await api.listFeedback(projectId);
+    return summarize(
+      record,
+      project,
+      createPinNumbers(asFeedbackRecords(feedback)),
+    );
+  }
+
+  server.registerTool(
+    "list_projects",
+    {
+      title: "List projects",
+      description:
+        "List ScreenCheck projects with their versions (oldest first, latest last) and screens (id, number, title, group). Each version and screen carries its count of open comments (Backlog or In progress); screen counts cover every version.",
+      inputSchema: {},
+      annotations: { readOnlyHint: true },
+    },
+    guarded(async () => {
+      const list = await api.listProjects();
+      const result = [];
+      const lines: string[] = [];
+      for (const project of list.projects) {
+        const feedback = (await api.listFeedback(project.id)).filter((item) =>
+          isOpenStatus(item.status),
+        );
+        const versions = project.versions.map((id) => ({
+          id,
+          open: feedback.filter((item) => item.version === id).length,
+        }));
+        const screens = project.screens.map((screen) => ({
+          id: screen.id,
+          ordinal: screen.ordinal,
+          title: screen.title,
+          group: screen.group,
+          hasCapture: screen.hasCapture,
+          open: feedback.filter((item) => item.screenId === screen.id).length,
+        }));
+        result.push({
+          id: project.id,
+          name: project.name,
+          open: feedback.length,
+          versions,
+          screens,
+        });
+        lines.push(
+          `${project.id} (${project.name}): ${feedback.length} open`,
+          `  Versions: ${versions.map((item) => `${item.id} (${item.open} open)`).join(", ")}`,
+          ...screens.map(
+            (screen) =>
+              `  ${String(screen.ordinal).padStart(2, "0")} ${screen.title} [${screen.group}] id ${screen.id}: ${screen.open} open`,
+          ),
+        );
+      }
+      if (list.problems.length) {
+        lines.push(`Problems: ${list.problems.join("; ")}`);
+      }
+      return textResult(lines.join("\n") || "No projects.", {
+        projects: result,
+        problems: list.problems,
+      });
+    }),
+  );
+
+  server.registerTool(
+    "list_feedback",
+    {
+      title: "List feedback",
+      description:
+        "List review comments with their on-screen pin number, screen, status, tags, note, latest reply and pin position (x, y from 0 to 1 across the capture). By default only open comments (Backlog and In progress) are shown. Use the id with get_comment, reply or set_status.",
+      inputSchema: {
+        project: z
+          .string()
+          .optional()
+          .describe("Project id. Optional when only one project exists."),
+        version: z.string().optional().describe("Only this version."),
+        screen: z
+          .string()
+          .optional()
+          .describe("Only this screen: its id, its number, or its title."),
+        status: z
+          .string()
+          .optional()
+          .describe(
+            `Only these statuses, comma-separated: ${STATUS_HELP}, verified. Overrides includeClosed.`,
+          ),
+        tag: z
+          .string()
+          .optional()
+          .describe("Only comments with this tag, e.g. P0 (case-insensitive)."),
+        includeClosed: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Also list Fixed, Won't fix and other closed comments."),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    guarded(async (args) => {
+      const project = pickProject(await projects(), args.project);
+      const version = pickVersion(project, args.version);
+      const screen = pickScreen(project, args.screen);
+      const statuses = args.status
+        ? args.status
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean)
+            .map(toApiStatus)
+        : undefined;
+      const tag = args.tag?.trim().toLowerCase();
+      const feedback = await api.listFeedback(project.id);
+      const pinNumbers = createPinNumbers(asFeedbackRecords(feedback));
+      const comments = feedback
+        .filter(
+          (item) =>
+            (!version || item.version === version) &&
+            (!screen || item.screenId === screen.id) &&
+            (statuses
+              ? statuses.includes(item.status)
+              : args.includeClosed || isOpenStatus(item.status)) &&
+            (!tag || item.tags.some((value) => value.toLowerCase() === tag)),
+        )
+        .map((item) => summarize(item, project, pinNumbers))
+        .sort(compareComments(project));
+      const scope = [
+        project.id,
+        version,
+        screen?.id,
+        statuses
+          ? statuses.map(statusLabel).join("/")
+          : args.includeClosed
+            ? "all statuses"
+            : "open",
+        args.tag,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const text = comments.length
+        ? `${comments.length} comment${comments.length === 1 ? "" : "s"} (${scope})\n\n${comments.map(formatComment).join("\n\n")}`
+        : `No comments match (${scope}).`;
+      return textResult(text, {
+        project: project.id,
+        filters: {
+          version: version ?? null,
+          screen: screen?.id ?? null,
+          status: statuses ?? null,
+          tag: args.tag ?? null,
+          includeClosed: args.includeClosed,
+        },
+        count: comments.length,
+        feedback: comments,
+      });
+    }),
+  );
+
+  server.registerTool(
+    "get_comment",
+    {
+      title: "Get comment",
+      description:
+        "Get one review comment in full: note, tags, status, reply, the screen and its caption (what the capture shows), plus an image of the capture cropped around the pin (about 800x600 capture pixels) with the pin circled. Set fullCapture to get the whole screen, downscaled, instead.",
+      inputSchema: {
+        id: z.string().min(1).describe("Comment id from list_feedback."),
+        project: z
+          .string()
+          .optional()
+          .describe("Project id. Optional; every project is searched."),
+        fullCapture: z
+          .boolean()
+          .optional()
+          .default(false)
+          .describe("Return the whole capture (downscaled) instead of a crop."),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    guarded(async (args) => {
+      const { project, feedback, record } = await findComment(
+        args.id,
+        args.project,
+      );
+      const comment = summarize(
+        record,
+        project,
+        createPinNumbers(asFeedbackRecords(feedback)),
+      );
+      const screen = project.screens.find(
+        (item) => item.id === record.screenId,
+      );
+      const caption =
+        captionFor(
+          await api.listCaptions(project.id).catch(() => []),
+          record.version,
+          record.screenId,
+        ) ??
+        screen?.description ??
+        null;
+      const capture = await api.capture(
+        project.id,
+        record.version,
+        record.screenId,
+      );
+      const image = capture
+        ? await renderPinImage(capture.data, record, {
+            full: args.fullCapture,
+          }).catch(() => null)
+        : null;
+
+      const lines = [
+        formatComment(comment).split("\n")[0]!,
+        "",
+        `Note: ${record.note}`,
+      ];
+      if (caption) lines.push(`Screen shows: ${caption}`);
+      if (Array.isArray(record.thread) && record.thread.length) {
+        lines.push(
+          `Thread: ${record.thread.length} messages (see structured content).`,
+        );
+      }
+      if (comment.latestReply) {
+        lines.push(
+          `Reply (${comment.latestReply.author || "unknown"}, ${comment.latestReply.at}): ${comment.latestReply.note}`,
+        );
+      }
+      if (image) {
+        lines.push(
+          args.fullCapture
+            ? `Image: whole ${image.capture.width}x${image.capture.height} capture at ${image.width}x${image.height}; the pin is circled at (${image.pin.x}, ${image.pin.y}).`
+            : `Image: ${image.width}x${image.height} crop of the ${image.capture.width}x${image.capture.height} capture from (${image.region.left}, ${image.region.top}); the pin is circled at (${image.pin.x}, ${image.pin.y}).`,
+        );
+      } else {
+        lines.push(
+          capture
+            ? "Image: the capture could not be read."
+            : `Image: no capture for ${record.version} / ${record.screenId}.`,
+        );
+      }
+
+      const structured = {
+        comment: {
+          ...comment,
+          reply: record.reply ?? null,
+          ...(record.thread !== undefined ? { thread: record.thread } : {}),
+          ...(record.element !== undefined ? { element: record.element } : {}),
+        },
+        screen: { ...screenInfo(screen), id: record.screenId, caption },
+        image: image
+          ? {
+              mimeType: image.mimeType,
+              width: image.width,
+              height: image.height,
+              region: image.region,
+              capture: image.capture,
+              pin: image.pin,
+            }
+          : null,
+        record,
+      };
+      const result = textResult(lines.join("\n"), structured);
+      if (image) {
+        result.content.push({
+          type: "image",
+          data: image.data.toString("base64"),
+          mimeType: image.mimeType,
+        });
+      }
+      return result;
+    }),
+  );
+
+  server.registerTool(
+    "reply",
+    {
+      title: "Reply to a comment",
+      description:
+        'Answer a review comment: say what you changed, or why you did not, and optionally move it to a new status in the same call. Use status "fixed" once the change is made, "wont-fix" with the reason, or "in-progress" while working. Only a reviewer can mark a comment verified.',
+      inputSchema: {
+        id: z.string().min(1).describe("Comment id from list_feedback."),
+        note: z
+          .string()
+          .trim()
+          .min(1)
+          .max(REPLY_MAX_LENGTH)
+          .describe("What was done, or why not. Shown under the comment."),
+        status: z.string().optional().describe(`New status: ${STATUS_HELP}.`),
+        author: z
+          .string()
+          .trim()
+          .min(1)
+          .max(64)
+          .optional()
+          .describe(`Name shown on the reply. Defaults to "${defaultAuthor}".`),
+        project: z
+          .string()
+          .optional()
+          .describe("Project id. Optional; every project is searched."),
+      },
+    },
+    guarded(async (args) => {
+      const status = agentStatus(args.status);
+      const { project, record } = await findComment(args.id, args.project);
+      const patch: Record<string, unknown> = {
+        reply: { note: args.note, author: args.author ?? defaultAuthor },
+      };
+      if (status) patch.status = status;
+      const saved = await patchComment(project.id, record, patch);
+      const comment = await updated(project.id, saved);
+      return textResult(`Replied.\n${formatComment(comment)}`, {
+        comment,
+      });
+    }),
+  );
+
+  server.registerTool(
+    "set_status",
+    {
+      title: "Set comment status",
+      description:
+        'Move a review comment to another status without writing a reply, e.g. "in-progress" when you start on it. Closing a comment (fixed or wont-fix) needs a note, so use reply for that. Only a reviewer can mark a comment verified.',
+      inputSchema: {
+        id: z.string().min(1).describe("Comment id from list_feedback."),
+        status: z.string().min(1).describe(`New status: ${STATUS_HELP}.`),
+        project: z
+          .string()
+          .optional()
+          .describe("Project id. Optional; every project is searched."),
+      },
+    },
+    guarded(async (args) => {
+      const status = agentStatus(args.status)!;
+      if (isClosingStatus(status)) {
+        throw new ToolError(
+          `Marking a comment ${statusLabel(status)} needs a note saying what was done or why not. Use reply with status "${args.status}" and a note.`,
+        );
+      }
+      const { project, record } = await findComment(args.id, args.project);
+      const saved =
+        record.status === status
+          ? record
+          : await patchComment(project.id, record, { status });
+      const comment = await updated(project.id, saved);
+      return textResult(
+        `Status: ${comment.statusLabel}.\n${formatComment(comment)}`,
+        { comment },
+      );
+    }),
+  );
+
+  server.registerTool(
+    "approval_status",
+    {
+      title: "Approval status",
+      description:
+        'Per-screen review state for one version: whether a reviewer approved the screen, and its open comments by priority. Starts with a summary such as "7/9 approved, 3 open (1 P0)". Approving is a reviewer action; agents only read it.',
+      inputSchema: {
+        project: z
+          .string()
+          .optional()
+          .describe("Project id. Optional when only one project exists."),
+        version: z
+          .string()
+          .optional()
+          .describe("Version id. Defaults to the latest version."),
+      },
+      annotations: { readOnlyHint: true },
+    },
+    guarded(async (args) => {
+      const project = pickProject(await projects(), args.project);
+      const version =
+        pickVersion(project, args.version) ?? project.versions.at(-1)!;
+      const [approvals, feedback] = await Promise.all([
+        api.listApprovals(project.id),
+        api.listFeedback(project.id),
+      ]);
+      const inVersion = feedback.filter((item) => item.version === version);
+      const screens = project.screens.map((screen) => ({
+        id: screen.id,
+        ordinal: screen.ordinal,
+        title: screen.title,
+        approved: isApproved(approvals, version, screen.id),
+        open: openByPriority(
+          inVersion.filter((item) => item.screenId === screen.id),
+        ),
+      }));
+      const approved = screens.filter((screen) => screen.approved).length;
+      const totals = openByPriority(inVersion);
+      const summary = `${approved}/${screens.length} approved, ${describeOpen(totals)}`;
+      const lines = [
+        `${project.id} / ${version}: ${summary}`,
+        ...screens.map(
+          (screen) =>
+            `  ${String(screen.ordinal).padStart(2, "0")} ${screen.title}: ${screen.approved ? "approved" : "not approved"}, ${describeOpen(screen.open)}`,
+        ),
+      ];
+      return textResult(lines.join("\n"), {
+        project: project.id,
+        version,
+        summary,
+        approved,
+        total: screens.length,
+        open: totals,
+        screens,
+      });
+    }),
+  );
+
+  server.registerResource(
+    "feedback-markdown",
+    new ResourceTemplate("screencheck://project/{id}/feedback.md", {
+      list: async () => {
+        try {
+          return {
+            resources: (await projects()).map((project) => ({
+              uri: `screencheck://project/${encodeURIComponent(project.id)}/feedback.md`,
+              name: `${project.name} feedback`,
+              mimeType: "text/markdown",
+            })),
+          };
+        } catch {
+          return { resources: [] };
+        }
+      },
+    }),
+    {
+      title: "Feedback export (Markdown)",
+      description:
+        "Every comment on a project as Markdown, grouped by screen, with pin numbers and ids. Same as the Export dialog.",
+      mimeType: "text/markdown",
+    },
+    async (uri, variables) => {
+      const id = decodeURIComponent(String(variables.id));
+      const project = pickProject(await projects(), id);
+      const feedback = asFeedbackRecords(await api.listFeedback(project.id));
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            mimeType: "text/markdown",
+            text: serializeMarkdown({
+              projectId: project.id,
+              screens: project.screens,
+              feedback,
+            }),
+          },
+        ],
+      };
+    },
+  );
+
+  server.registerPrompt(
+    "fix_open_feedback",
+    {
+      title: "Fix open feedback",
+      description:
+        "Work through the open P0 and P1 comments on a project version, then reply to each.",
+      argsSchema: {
+        project: z.string().describe("Project id."),
+        version: z
+          .string()
+          .optional()
+          .describe("Version id. Defaults to the latest."),
+      },
+    },
+    ({ project, version }) => {
+      const target = version
+        ? `${project}/${version}`
+        : `${project} (latest version)`;
+      return {
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: `Fix the open P0/P1 comments on ${target} in ScreenCheck, then reply to each.
+
+1. Call list_feedback with project "${project}"${version ? `, version "${version}"` : ""} and tag "P0", then again with tag "P1".
+2. For each comment, call get_comment to read the note and look at the crop around the pin.
+3. Make the change in the code.
+4. Call reply with a short note saying what you changed and status "fixed". If you decide not to change it, reply with status "wont-fix" and the reason.
+Do not try to verify or approve anything; the reviewer does that.`,
+            },
+          },
+        ],
+      };
+    },
+  );
+
+  return server;
+}
+
+export async function runMcpServer(
+  options: { origin?: string; author?: string } = {},
+): Promise<void> {
+  const server = createMcpServer(options);
+  await server.connect(new StdioServerTransport());
+}

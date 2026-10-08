@@ -1,0 +1,38 @@
+name: Publish to npm
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (build, test and pack, but don't upload)"
+        type: boolean
+        default: true
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+      # The lockfile is generated behind a private mirror; point it at the public registry.
+      - run: sed -i -E 's#https://[^"]*/_packaging/npm-public/npm/registry/#https://registry.npmjs.org/#g' package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Publish
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            npm publish --dry-run --access public
+          else
+            npm publish --provenance --access public
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

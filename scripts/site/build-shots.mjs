@@ -67,7 +67,7 @@ async function writeRegistration(projectsRoot, captureRoot) {
 function startServer(dataRoot, projectsRoot) {
   const child = spawn(
     path.join(ROOT, "node_modules/.bin/tsx"),
-    ["src/server/index.ts"],
+    ["src/server/main.ts"],
     {
       cwd: ROOT,
       env: {
@@ -75,6 +75,7 @@ function startServer(dataRoot, projectsRoot) {
         PORT: String(PORT),
         SCREENCHECK_DATA: dataRoot,
         SCREENCHECK_PROJECTS: projectsRoot,
+        SCREENCHECK_RECORD: "0",
       },
       stdio: ["ignore", "pipe", "inherit"],
     },

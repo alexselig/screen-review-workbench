@@ -8,6 +8,7 @@ import {
   clearRuntimeInfo,
   readRuntimeInfo,
   resolveOrigin,
+  shouldRecordRuntime,
   writeRuntimeInfo,
 } from "../src/server/runtime";
 
@@ -68,5 +69,11 @@ describe("runtime info", () => {
       "http://127.0.0.1:5000",
     );
     expect(resolveOrigin(undefined, {}, none)).toBe("http://127.0.0.1:4173");
+  });
+
+  it("lets throwaway servers opt out of recording themselves", () => {
+    expect(shouldRecordRuntime({})).toBe(true);
+    expect(shouldRecordRuntime({ SCREENCHECK_RECORD: "1" })).toBe(true);
+    expect(shouldRecordRuntime({ SCREENCHECK_RECORD: "0" })).toBe(false);
   });
 });

@@ -78,3 +78,9 @@ export function resolveOrigin(
   if (running) return running.origin;
   return `http://127.0.0.1:${env.PORT ?? "4173"}`;
 }
+
+// Throwaway servers (demo shots, smoke tests) set SCREENCHECK_RECORD=0 so they
+// never repoint agents away from the reviewer's real server.
+export function shouldRecordRuntime(env: NodeJS.ProcessEnv = process.env) {
+  return env.SCREENCHECK_RECORD !== "0";
+}

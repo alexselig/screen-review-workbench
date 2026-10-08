@@ -114,6 +114,7 @@ server prints the folder it is using on startup.
 | `DELETE /api/projects/:projectId/feedback/:id`             | Delete the expected revision                                                                                                                                 |
 | `GET /api/projects`                                        | Registered projects and screens (no local paths or proxy settings)                                                                                           |
 | `GET /api/projects/:projectId/captures/:version/:screenId` | A screen's capture image, only from inside that version's `captureRoot`                                                                                      |
+| `GET /api/projects/:projectId/elements/:version/:screenId` | A screen's element map (`<capture>.elements.json`), only from inside `captureRoot`; `404` when there is none, `500` if malformed                             |
 | `POST /api/projects/:projectId/feedback/import`            | Merge records saved elsewhere, keeping ids                                                                                                                   |
 | `GET /api/projects/:projectId/approvals`                   | Approved screens (stored beside `feedback.json` in `approvals.json`)                                                                                         |
 | `PUT /api/projects/:projectId/approvals`                   | Set `{version, screenId, approved}`; returns the full list                                                                                                   |
@@ -202,6 +203,53 @@ Headers, full-screen dialogs, and pages shorter than the viewport are left
 alone. Apps that scroll an inner container (a `100vh` body with its own
 scroller) are not covered; capture those by scrolling the container instead.
 
+## Element map
+
+When `captureFullPage` is given a `path`, it also writes an element map beside
+the capture: `checkout.png` gets `checkout.elements.json`. It records the
+visible, meaningful elements after the footer adjustments, so the boxes line up
+with the full-page shot:
+
+- interactive elements (links, buttons, fields, anything with a `role` or
+  `tabindex`), headings, images, `header`/`nav`/`main`/`footer`/`aside` and
+  labelled sections and forms, anything with `data-testid`, and blocks that
+  hold text directly;
+- for each: its box as fractions of the capture (like pin coordinates), role,
+  accessible name (120 characters at most), tag, `data-testid`, a short
+  selector (test id, then id, then a short CSS path) and, when it can tell,
+  the source file.
+
+Hidden, zero-size and `opacity: 0` elements are left out, and a page keeps at
+most 2000 (interactive and tagged elements first). Pass `elements: false` to
+skip the map or `elements: { path }` to write it elsewhere; the map is also
+returned as `result.elements`.
+
+A pin then names the element under it (the smallest box containing it): the
+comment card shows `↳ button "Continue to vehicle" · Footer.tsx:42`, and
+exports add `Element: button "Continue to vehicle" (src/booking/Footer.tsx:42)`
+in Markdown and an `element` object in JSON. Screens without a map simply show
+nothing. The shared helpers live in `src/shared/elements.ts`
+(`elementMapSchema`, `resolvePinElement`, `describeElement`).
+
+**Source files** are best effort, read in this order, and never required:
+
+1. Attributes on the element or its nearest annotated ancestor:
+   `data-source="src/booking/Footer.tsx:42:7"`, react-dev-inspector's
+   `data-inspector-relative-path` / `-line` / `-column`,
+   `data-source-file` / `-line`, Sentry's `data-sentry-source-file` and
+   `data-sentry-component`, or `data-component`.
+2. React development builds: `_debugSource` (React 18 and earlier) gives file,
+   line and component; React 19 gives the component name and the file from its
+   dev stack (no line, since dev-server stacks are not source-mapped).
+3. Vue development builds: the component's `__file` and name.
+4. Svelte development builds: `__svelte_meta.loc`.
+
+To opt a build in, capture a development build, or add a compile-time plugin
+that stamps JSX with a source attribute: for example
+`@react-dev-inspector/babel-plugin` (Babel),
+`@sentry/babel-plugin-component-annotate`, or an SWC plugin that writes
+`data-source="file:line"`. Keep it out of production builds.
+
 ## Project site
 
 `docs/` is the GitHub Pages site. Its screenshots come from a made-up ferry app
@@ -212,7 +260,9 @@ node scripts/site/build-shots.mjs          # writes docs/assets/*.png
 node scripts/site/build-shots.mjs --serve  # leaves the seeded demo running on :4196
 ```
 
-The script renders each demo screen through `captureFullPage`, registers them
+The script renders each demo screen through `captureFullPage` (which also
+writes each screen's element map; the demo markup carries `data-source`
+attributes so cards show a file), registers them
 in a temporary folder, starts a server on port 4196 with temporary data, seeds
 the comments, replies and approvals through the API, and captures the shots
 listed in `scripts/site/shots.mjs`. Nothing touches `~/.screencheck`.

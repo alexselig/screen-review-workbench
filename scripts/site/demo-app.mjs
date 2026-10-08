@@ -61,7 +61,7 @@ const shell = (
 }</body></html>`;
 
 const steps = (now) =>
-  `<div class="steps">${[
+  `<div class="steps" data-source="src/booking/Steps.tsx:12">${[
     "Route",
     "Sailing",
     "Vehicle & passengers",
@@ -74,7 +74,7 @@ const steps = (now) =>
     .join("")}</div>`;
 
 const sailing = (time, arrive, boat, price, selected = false, note = "") =>
-  `<div class="sail ${selected ? "sel" : ""}"><div class="time">${time}</div><div><b>Arrives ${arrive}</b><div class="muted">${boat}${note ? ` · ${note}` : ""}</div></div><div class="muted">${selected ? "Selected" : "Seats left"}</div><div class="price">${price}</div></div>`;
+  `<div class="sail ${selected ? "sel" : ""}" data-testid="sailing-${time}" data-source="src/booking/SailingRow.tsx:18"><div class="time">${time}</div><div><b>Arrives ${arrive}</b><div class="muted">${boat}${note ? ` · ${note}` : ""}</div></div><div class="muted">${selected ? "Selected" : "Seats left"}</div><div class="price">${price}</div></div>`;
 
 export const SCREENS = [
   {
@@ -99,11 +99,11 @@ export const SCREENS = [
     group: "Access",
     description: "Signed in, one upcoming trip",
     html: shell(
-      `<div class="hero"><h1>Good morning, Maya</h1><div>Your next sailing leaves in 3 days.</div></div>
-      <div class="grid side"><div class="card"><h2>Upcoming</h2>
+      `<div class="hero" data-source="src/home/Greeting.tsx:15"><h1>Good morning, Maya</h1><div>Your next sailing leaves in 3 days.</div></div>
+      <div class="grid side"><div class="card" data-testid="upcoming" data-source="src/home/UpcomingTrips.tsx:22"><h2>Upcoming</h2>
         <div class="row"><div><b>Harbour → Gull Island</b><div class="muted">Fri 14 Nov · 08:40 · Car + 2 adults</div></div><span class="pill">Confirmed</span></div>
         <div class="row"><div><b>Gull Island → Harbour</b><div class="muted">Sun 16 Nov · 17:10 · Car + 2 adults</div></div><span class="pill warn">Waitlist</span></div></div>
-        <div class="card"><h2>Quick book</h2><div class="field">From<div class="input">Harbour</div></div><div class="field">To<div class="input">Gull Island</div></div><span class="btn">Find sailings</span></div></div>`,
+        <div class="card" data-testid="quick-book" data-source="src/home/QuickBook.tsx:21"><h2>Quick book</h2><div class="field">From<div class="input">Harbour</div></div><div class="field">To<div class="input">Gull Island</div></div><span class="btn">Find sailings</span></div></div>`,
     ),
   },
   {
@@ -116,7 +116,7 @@ export const SCREENS = [
       <div class="grid side"><div class="card">
         <div class="grid g2"><div class="field">From<div class="input">Harbour</div></div><div class="field">To<div class="input">Gull Island</div></div>
         <div class="field">Out<div class="input">Fri 14 Nov</div></div><div class="field">Back<div class="input">Sun 16 Nov</div></div></div>
-        <div style="display:flex;gap:10px"><span class="btn ghost">One way</span><span class="btn">Return</span></div></div>
+        <div style="display:flex;gap:10px" data-source="src/booking/TripTypeToggle.tsx:24"><span class="btn ghost" role="button">One way</span><span class="btn" role="button">Return</span></div></div>
         <div class="card"><h2>Route map</h2><div class="map"><i style="left:18%;top:62%"></i><i style="left:72%;top:28%"></i></div><p class="muted">Crossing time about 55 minutes.</p></div></div>`,
     ),
   },
@@ -132,7 +132,7 @@ export const SCREENS = [
       ${sailing("11:05", "12:00", "MV Petrel", "£62")}
       ${sailing("13:30", "14:25", "MV Cormorant", "£55", false, "Few seats left")}
       ${sailing("17:10", "18:05", "MV Petrel", "£70")}
-      <div style="margin-top:20px;display:flex;justify-content:space-between"><span class="btn ghost">Back</span><span class="btn">Continue to vehicle</span></div>`,
+      <div style="margin-top:20px;display:flex;justify-content:space-between" data-source="src/booking/Footer.tsx:36"><span class="btn ghost" role="button">Back</span><span class="btn" role="button" data-source="src/booking/Footer.tsx:42">Continue to vehicle</span></div>`,
     ),
   },
   {
@@ -142,12 +142,12 @@ export const SCREENS = [
     description: "Step 3 of 4, manual entry path (no saved vehicle)",
     html: shell(
       `${steps(2)}<h1>Who's travelling?</h1><p class="sub">Enter your vehicle details. We use the length to reserve deck space.</p>
-      <div class="grid side"><div class="card"><h2>Vehicle</h2>
+      <div class="grid side"><div class="card" data-source="src/booking/VehicleForm.tsx:31"><h2>Vehicle</h2>
         <div class="grid g2"><div class="field">Registration<div class="input">KX21 RTA</div></div><div class="field">Type<div class="input">Car</div></div>
         <div class="field">Length (m)<div class="input">4.6</div></div><div class="field">Height (m)<div class="input">1.5</div></div></div>
         <h2 style="margin-top:12px">Passengers</h2>
         <div class="row"><span>Adults</span><b>2</b></div><div class="row"><span>Children (5-15)</span><b>0</b></div><div class="row"><span>Dogs</span><b>1</b></div></div>
-        <div class="card"><h2>Summary</h2><div class="row"><span>Outbound 08:40</span><b>£62</b></div><div class="row"><span>Return 17:10</span><b>£70</b></div><div class="row"><span>Dog</span><b>£6</b></div><div class="row"><span>Return discount</span><b>−£13</b></div><div class="row"><b>Total</b><b>£125</b></div><span class="btn" style="margin-top:12px">Continue</span></div></div>`,
+        <div class="card" data-testid="price-summary" data-source="src/booking/PriceSummary.tsx:40"><h2>Summary</h2><div class="row"><span>Outbound 08:40</span><b>£62</b></div><div class="row"><span>Return 17:10</span><b>£70</b></div><div class="row"><span>Dog</span><b>£6</b></div><div class="row"><span>Return discount</span><b>−£13</b></div><div class="row"><b>Total</b><b>£125</b></div><span class="btn" role="button" style="margin-top:12px">Continue</span></div></div>`,
     ),
   },
   {
@@ -157,7 +157,7 @@ export const SCREENS = [
     description: "Step 4 of 4, full page with saved card",
     html: shell(
       `${steps(3)}<h1>Review and pay</h1><p class="sub">Check everything before you pay. Changes are free until 24 hours before sailing.</p>
-      <div class="notice">Your return sailing is waitlisted. We'll move you to a confirmed seat or refund that leg in full.</div>
+      <div class="notice" role="status" data-source="src/booking/WaitlistNotice.tsx:9">Your return sailing is waitlisted. We'll move you to a confirmed seat or refund that leg in full.</div>
       <div class="grid side"><div class="grid">
         <div class="card"><h2>Trips</h2><div class="row"><div><b>Outbound · Fri 14 Nov 08:40</b><div class="muted">MV Cormorant · Harbour → Gull Island</div></div><span class="pill">Confirmed</span></div><div class="row"><div><b>Return · Sun 16 Nov 17:10</b><div class="muted">MV Petrel · Gull Island → Harbour</div></div><span class="pill warn">Waitlist</span></div></div>
         <div class="card"><h2>Travellers</h2><div class="row"><span>Maya Okafor</span><span class="muted">Lead</span></div><div class="row"><span>Tom Okafor</span><span class="muted">Adult</span></div><div class="row"><span>Biscuit</span><span class="muted">Dog</span></div></div>
@@ -165,7 +165,7 @@ export const SCREENS = [
         <div class="card"><h2>Payment</h2><div class="row"><span>Visa ending 4421</span><span class="muted">Expires 08/28</span></div><div class="row"><span>Billing postcode</span><span class="muted">TR19 7AA</span></div></div>
         <div class="card"><h2>Terms</h2><p class="muted">By paying you agree to the conditions of carriage. Vehicles must check in 30 minutes before departure. Dogs travel on the car deck or in the pet lounge.</p></div>
       </div>
-      <div class="card" style="align-self:start"><h2>Total</h2><div class="row"><span>Fares</span><b>£132</b></div><div class="row"><span>Extras</span><b>£6</b></div><div class="row"><span>Discount</span><b>−£13</b></div><div class="row"><b>Pay now</b><b>£125</b></div><span class="btn" style="margin-top:12px;display:block;text-align:center">Pay £125</span></div></div>`,
+      <div class="card" style="align-self:start"><h2>Total</h2><div class="row"><span>Fares</span><b>£132</b></div><div class="row"><span>Extras</span><b>£6</b></div><div class="row"><span>Discount</span><b>−£13</b></div><div class="row"><b>Pay now</b><b>£125</b></div><span class="btn" role="button" data-source="src/booking/PayButton.tsx:27" style="margin-top:12px;display:block;text-align:center">Pay £125</span></div></div>`,
       { footer: true },
     ),
   },
@@ -175,7 +175,7 @@ export const SCREENS = [
     group: "Booking",
     description: "Paid, return leg still waitlisted",
     html: shell(
-      `<div class="card" style="max-width:640px;margin:40px auto;text-align:center;padding:48px">
+      `<div class="card" data-source="src/booking/Confirmation.tsx:33" style="max-width:640px;margin:40px auto;text-align:center;padding:48px">
         <div style="width:64px;height:64px;border-radius:50%;background:#d4efec;margin:0 auto 20px;display:grid;place-items:center;font-size:30px;color:#0b5d68">✓</div>
         <h1>You're booked</h1><p class="sub">Reference TW-48213. Tickets are in My trips and on their way to your email.</p>
         <div class="row"><span>Outbound · Fri 08:40</span><span class="pill">Confirmed</span></div><div class="row"><span>Return · Sun 17:10</span><span class="pill warn">Waitlist</span></div>
@@ -189,7 +189,7 @@ export const SCREENS = [
     description: "Two upcoming, three past trips",
     html: shell(
       `<h1>My trips</h1><p class="sub">Show the QR code at check-in. Past trips stay here for 12 months.</p>
-      <div class="card"><h2>Upcoming</h2><div class="row"><div><b>Harbour → Gull Island</b><div class="muted">Fri 14 Nov · 08:40 · TW-48213</div></div><span class="btn ghost">Show ticket</span></div><div class="row"><div><b>Gull Island → Harbour</b><div class="muted">Sun 16 Nov · 17:10 · TW-48213</div></div><span class="pill warn">Waitlist</span></div></div>
+      <div class="card"><h2>Upcoming</h2><div class="row"><div><b>Harbour → Gull Island</b><div class="muted">Fri 14 Nov · 08:40 · TW-48213</div></div><span class="btn ghost" role="button" data-source="src/trips/TripRow.tsx:19">Show ticket</span></div><div class="row"><div><b>Gull Island → Harbour</b><div class="muted">Sun 16 Nov · 17:10 · TW-48213</div></div><span class="pill warn">Waitlist</span></div></div>
       <div class="card" style="margin-top:20px"><h2>Past</h2><div class="row"><span>Harbour → Gull Island · 2 Aug</span><span class="muted">Receipt</span></div><div class="row"><span>Gull Island → Harbour · 4 Aug</span><span class="muted">Receipt</span></div><div class="row"><span>Harbour → Puffin Rock · 19 May</span><span class="muted">Receipt</span></div></div>`,
     ),
   },

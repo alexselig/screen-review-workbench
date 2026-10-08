@@ -33,11 +33,14 @@ async function renderCaptures(browser, captureRoot) {
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1000 },
   });
-  // ScreenCheck's own capture helper, so long pages end at their footer.
+  // ScreenCheck's own capture helper, so long pages end at their footer. It
+  // also writes `<screen>.elements.json` beside each capture; the demo markup
+  // carries `data-source` attributes, so comment cards name a source file.
   for (const screen of SCREENS) {
     await page.setContent(screen.html);
     await captureFullPage(page, {
       path: path.join(captureRoot, `${screen.id}.png`),
+      elements: true,
     });
   }
   await page.close();

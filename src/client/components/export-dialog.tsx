@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import type { ElementMap } from "../../shared/elements";
 import { serializeJson, serializeMarkdown } from "../../shared/export";
 import {
   FEEDBACK_STATUSES,
@@ -7,6 +8,7 @@ import {
   type FeedbackStatus,
 } from "../../shared/feedback";
 import type { ReviewScreen } from "../../shared/manifest";
+import { fetchElementMaps } from "../element-map-api";
 
 export type ExportFormat = "json" | "markdown";
 
@@ -68,6 +70,26 @@ export function ExportDialog({
     .filter(Boolean)
     .join(" · ");
 
+  // Element maps let each comment name what its pin points at; screens
+  // without one are simply left out.
+  const [elements, setElements] = useState<Record<string, ElementMap>>({});
+  const screenIdsKey = [
+    ...new Set(versionFeedback.map((item) => item.screenId)),
+  ].join("\0");
+  useEffect(() => {
+    let live = true;
+    void fetchElementMaps(
+      projectId,
+      version,
+      screenIdsKey ? screenIdsKey.split("\0") : [],
+    ).then((maps) => {
+      if (live && Object.keys(maps).length) setElements(maps);
+    });
+    return () => {
+      live = false;
+    };
+  }, [projectId, version, screenIdsKey]);
+
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     dialogRef.current
@@ -116,6 +138,7 @@ export function ExportDialog({
       feedback: records,
       allFeedback: versionFeedback,
       scope: scopeText,
+      elements,
     };
     const contents =
       format === "json" ? serializeJson(input) : serializeMarkdown(input);

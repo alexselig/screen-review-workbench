@@ -1,3 +1,10 @@
+import {
+  describeElement,
+  elementMapKey,
+  resolvePinElement,
+  type ElementMap,
+  type MappedElement,
+} from "./elements";
 import { STATUS_LABELS, type FeedbackRecord } from "./feedback";
 import type { ReviewScreen } from "./manifest";
 
@@ -10,6 +17,9 @@ export type FeedbackExportInput = {
   allFeedback?: FeedbackRecord[];
   // Human-readable description of what the export covers.
   scope?: string;
+  // Element maps keyed "version/screenId"; comments then name the element
+  // under their pin.
+  elements?: Record<string, ElementMap>;
 };
 
 type ExportFeedback = FeedbackRecord & {
@@ -17,6 +27,7 @@ type ExportFeedback = FeedbackRecord & {
   screenTitle: string;
   screenDescription: string | null;
   pinNumber: number;
+  element?: MappedElement & { description: string };
 };
 
 function feedbackGroupKey(item: FeedbackRecord) {
@@ -45,6 +56,14 @@ export function createPinNumbers(feedback: FeedbackRecord[]) {
   return pinNumbers;
 }
 
+function pinElement(input: FeedbackExportInput, item: FeedbackRecord) {
+  const map = input.elements?.[elementMapKey(item.version, item.screenId)];
+  const element = resolvePinElement(map, item);
+  return element
+    ? { element: { ...element, description: describeElement(element) } }
+    : {};
+}
+
 function safeFeedback(input: FeedbackExportInput): ExportFeedback[] {
   const screenById = new Map(
     input.screens.map((screen) => [screen.id, screen]),
@@ -59,6 +78,7 @@ function safeFeedback(input: FeedbackExportInput): ExportFeedback[] {
         screenTitle: screen?.title ?? item.screenId,
         screenDescription: screen?.description ?? null,
         pinNumber: pinNumbers.get(item.id) ?? 0,
+        ...pinElement(input, item),
       };
     })
     .sort(
@@ -121,6 +141,9 @@ export function serializeMarkdown(input: FeedbackExportInput): string {
       item.status === "RESOLVED" || item.status === "WONT_FIX" ? "x" : " ";
     lines.push(
       `- [${checked}] **Pin ${item.pinNumber}${item.tags.length ? ` · ${item.tags.join(", ")}` : ""} · ${STATUS_LABELS[item.status]}** (${percent(item.x)}, ${percent(item.y)}): ${escapeMarkdown(item.note)} \`id: ${item.id.replace(/`/g, "")}\``,
+      ...(item.element
+        ? [`  - Element: ${escapeMarkdown(item.element.description)}`]
+        : []),
       ...(item.reply
         ? [
             `  - Reply (${escapeMarkdown(item.reply.author)}): ${escapeMarkdown(item.reply.note)}`,

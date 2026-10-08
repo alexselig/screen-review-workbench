@@ -35,6 +35,10 @@ export async function installFakeFeedbackApi() {
     if (path === "/api/projects") {
       return reply(200, { projects: [EXAMPLE_PROJECT], problems: [] });
     }
+    // Element maps are optional reads; the example project has none.
+    if (/^\/api\/projects\/[^/]+\/elements\//.test(path)) {
+      return reply(404, { error: "Element map not found." });
+    }
     requests.push({ method, path });
     if (gate) await gate;
     if (failNext && (failNext.path ?? /\/feedback/).test(path)) {

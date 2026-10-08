@@ -5,6 +5,7 @@ import path from "node:path";
 import { z } from "zod";
 
 import { appHome } from "./home";
+import { elementMapPathFor } from "../shared/elements";
 import { parseScreens, type ReviewScreen } from "../shared/manifest";
 import type { PublicProject, ProjectList } from "../shared/projects";
 
@@ -179,6 +180,25 @@ export function createProjectCatalog({
       ]);
       if (!realFile.startsWith(`${realRoot}${path.sep}`)) return null;
       return { type, open: () => createReadStream(realFile) };
+    },
+    // The element map stored beside a screen's capture, as raw text, or null
+    // when there is none (or it would sit outside the captureRoot).
+    async elements(projectId: string, versionId: string, screenId: string) {
+      const { registrations } = await readRegistrations(projectsRoot);
+      const registration = registrations.find((item) => item.id === projectId);
+      const version = registration?.versions.find(
+        (item) => item.id === versionId,
+      );
+      const screen = registration?.screens.find((item) => item.id === screenId);
+      if (!version || !screen) return null;
+      const file = elementMapPathFor(captureFile(version, screen));
+      if (!(await isFile(file))) return null;
+      const [realFile, realRoot] = await Promise.all([
+        realpath(file),
+        realpath(version.captureRoot),
+      ]);
+      if (!realFile.startsWith(`${realRoot}${path.sep}`)) return null;
+      return readFile(realFile, "utf8");
     },
   };
 }

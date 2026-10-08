@@ -17,7 +17,7 @@
     "type": "git",
     "url": "git+https://github.com/alexselig/screencheck.git"
   },
-  "homepage": "https://alexselig.github.io/screencheck/",
+  "homepage": "https://screencheck.dev/",
   "type": "module",
   "engines": {
     "node": ">=22"

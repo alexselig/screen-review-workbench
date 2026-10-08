@@ -14,7 +14,7 @@ configuration under `~/.screencheck`.
 > `SCREEN_REVIEW_PROJECTS` and `SCREEN_REVIEW_URL` variables still work, and
 > unsaved drafts and panel settings in the browser carry over automatically.
 
-**Site:** https://alexselig.github.io/screencheck/ (feature tour
+**Site:** https://screencheck.dev/ (feature tour
 with screenshots).
 
 ## Install / Run

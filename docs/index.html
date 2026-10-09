@@ -1114,14 +1114,9 @@
               <h3>1. Start it</h3>
               <p>
                 Node 22 or later. The server listens on
-                <code>127.0.0.1:4173</code> only. <code>npm link</code> puts
-                <code>screencheck</code> on your path; it isn't on npm yet.
+                <code>127.0.0.1:4173</code> only.
               </p>
-              <pre><code>git clone https://github.com/alexselig/screencheck
-cd screencheck
-npm install
-npm run build &amp;&amp; npm link
-screencheck serve --open</code></pre>
+              <pre><code>npx screencheck serve --open</code></pre>
             </div>
             <div>
               <h3>2. Capture your screens</h3>
@@ -1129,8 +1124,7 @@ screencheck serve --open</code></pre>
                 Use Playwright and the bundled helper, so long pages end at
                 their footer.
               </p>
-              <pre><code>import { captureFullPage } from
-  "./src/capture/full-page";
+              <pre><code>import { captureFullPage } from "screencheck/capture";
 
 await page.goto("http://localhost:3000/checkout");
 await captureFullPage(page, {

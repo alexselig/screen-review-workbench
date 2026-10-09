@@ -23,10 +23,10 @@ with screenshots).
 npx screencheck serve --open
 ```
 
-Not on npm yet. Until it is, from a clone:
+Or install it once so `screencheck` is on your PATH:
 
 ```bash
-npm install && npm run build && npm link   # puts `screencheck` on your PATH
+npm install -g screencheck
 screencheck serve --open
 ```
 
@@ -242,9 +242,9 @@ and the `fix_open_feedback` prompt walks an agent through the open P0 and P1
 comments. Replies are signed `Agent` unless the tool call passes `author` or
 the server is started with `--author <name>` (or `SCREENCHECK_AUTHOR`).
 
-With `screencheck` on your PATH (see Install), the command is
-`screencheck mcp`; from a clone without linking, use
-`npx tsx /path/to/screencheck/src/mcp/main.ts` as below.
+The command is `npx -y screencheck mcp` (or `screencheck mcp` if it's
+installed globally). From a clone, use
+`npx tsx /path/to/screencheck/src/mcp/main.ts` instead.
 
 **Copilot CLI** (`~/.copilot/mcp-config.json`):
 
@@ -254,7 +254,7 @@ With `screencheck` on your PATH (see Install), the command is
     "screencheck": {
       "type": "local",
       "command": "npx",
-      "args": ["tsx", "/path/to/screencheck/src/mcp/main.ts"],
+      "args": ["-y", "screencheck", "mcp"],
       "tools": ["*"]
     }
   }
@@ -264,7 +264,7 @@ With `screencheck` on your PATH (see Install), the command is
 **Claude Code:**
 
 ```bash
-claude mcp add screencheck -- npx tsx /path/to/screencheck/src/mcp/main.ts
+claude mcp add screencheck -- npx -y screencheck mcp
 ```
 
 **VS Code** (`.vscode/mcp.json`):
@@ -275,7 +275,7 @@ claude mcp add screencheck -- npx tsx /path/to/screencheck/src/mcp/main.ts
     "screencheck": {
       "type": "stdio",
       "command": "npx",
-      "args": ["tsx", "/path/to/screencheck/src/mcp/main.ts"]
+      "args": ["-y", "screencheck", "mcp"]
     }
   }
 }

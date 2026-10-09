@@ -32,7 +32,7 @@ jobs:
       - name: Publish
         run: |
           if [ "${{ inputs.dry_run }}" = "true" ]; then
-            npm publish --dry-run --access public
+            npm run build && npm test && npm pack --dry-run
           else
             npm publish --provenance --access public
           fi

@@ -590,14 +590,17 @@ h1 {
   background: #e3e5e9;
 }
 
+/* Rows bleed to the rail edges like the section bands; the padding adds the
+   rail's inset back so numbers and names stay put. */
 .screen-rail li button {
   display: grid;
-  width: 100%;
+  width: calc(100% + 32px);
+  margin-inline: -16px;
   min-height: 40px;
   grid-template-columns: 56px minmax(0, 1fr);
   gap: 8px;
   align-items: center;
-  padding: 6px 8px 6px 4px;
+  padding: 6px 24px 6px 20px;
   border: 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
@@ -708,8 +711,10 @@ h1 {
    their position when the compact rail opens on hover. The start padding
    keeps badges clear of the row edge and its inset focus ring. */
 .screen-rail[data-mode="compact"] li button {
+  width: calc(100% + 8px);
+  margin-inline: -4px;
   grid-template-columns: 56px minmax(0, 1fr);
-  padding-inline: 8px 4px;
+  padding-inline: 12px 8px;
 }
 
 .screen-rail[data-mode="compact"]:not([data-expanded="true"]) .screen-name,
@@ -973,8 +978,10 @@ h1 {
     .screen-rail[data-mode="compact"]:not([data-expanded="true"])
     li
     button {
+    width: calc(100% + 6px);
+    margin-inline: -3px;
     grid-template-columns: minmax(0, 1fr);
-    padding-inline: 10px 0;
+    padding-inline: 13px 3px;
   }
 }
 
@@ -1928,15 +1935,18 @@ button.tag-chip:hover {
   .screen-rail li button,
   .screen-rail[data-mode="compact"]:not([data-expanded="true"]) li button {
     width: auto;
+    margin-inline: 0;
     min-height: 56px;
     grid-template-columns: auto auto;
     gap: 8px;
-    padding: 8px 16px;
+    /* Room on the left for the badges that hang off the number. */
+    padding: 8px 16px 8px 36px;
     border-bottom: 0;
   }
 
   .screen-rail[data-mode="compact"] li button {
     grid-template-columns: auto auto;
+    padding-inline: 36px 16px;
   }
 
   .screen-rail .screen-name,

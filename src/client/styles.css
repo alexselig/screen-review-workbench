@@ -705,10 +705,11 @@ h1 {
 }
 
 /* Number column is the same width collapsed and expanded, so numbers hold
-   their position when the compact rail opens on hover. */
+   their position when the compact rail opens on hover. The start padding
+   keeps badges clear of the row edge and its inset focus ring. */
 .screen-rail[data-mode="compact"] li button {
   grid-template-columns: 56px minmax(0, 1fr);
-  padding-inline: 0 4px;
+  padding-inline: 8px 4px;
 }
 
 .screen-rail[data-mode="compact"]:not([data-expanded="true"]) .screen-name,
@@ -973,7 +974,7 @@ h1 {
     li
     button {
     grid-template-columns: minmax(0, 1fr);
-    padding-inline: 0;
+    padding-inline: 10px 0;
   }
 }
 

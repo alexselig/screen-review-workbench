@@ -56,8 +56,8 @@ Ties go to whatever unblocks later items.
 **Shipped in October 2026.** All five items below are on `main`: the MCP
 server (`screencheck mcp`), element maps written by `captureFullPage`, the
 reviewer-only Verified status with Verify/Reopen and the approval check,
-threaded replies (`schemaVersion: 2`), and the `screencheck` CLI. Still open:
-publishing the package to npm (it builds and packs; `npm link` until then).
+threaded replies (`schemaVersion: 2`), and the `screencheck` CLI, published to
+npm as `screencheck` (GitHub Actions publishes it with provenance on `v*` tags).
 
 | #   | Feature                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Why it ranks here                                                                                                                                                                                     | Effort |
 | --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |

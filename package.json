@@ -42,7 +42,9 @@
     "build": "tsc --noEmit && node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build && npm test",
+    "playground": "node scripts/playground/run.mjs",
+    "screencheck": "tsx src/cli/bin.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",

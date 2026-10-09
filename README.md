@@ -54,6 +54,16 @@ npm test
 npm run build   # dist/client plus the bundled CLI in dist/cli.js
 ```
 
+### Playground
+
+```bash
+npm run playground   # seeded demo on http://127.0.0.1:4299
+```
+
+Captures a made-up ferry booking app in two builds, seeds feedback in every
+state and opens the browser. [docs/PLAYGROUND.md](docs/PLAYGROUND.md) walks
+through each feature, from dropping a pin to an agent replying over MCP.
+
 ## Current implementation
 
 - Wide and compact numbered navigation with hover/focus expansion and pinning.

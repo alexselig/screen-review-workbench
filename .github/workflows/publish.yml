@@ -25,6 +25,8 @@ jobs:
           registry-url: https://registry.npmjs.org
       # The lockfile is generated behind a private mirror; point it at the public registry.
       - run: sed -i -E 's#https://[^"]*/_packaging/npm-public/npm/registry/#https://registry.npmjs.org/#g' package-lock.json
+      # Trusted publishing (OIDC) needs npm 11.5.1 or later; Node 22 ships npm 10.
+      - run: npm install -g npm@latest
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - name: Publish
@@ -34,5 +36,6 @@ jobs:
           else
             npm publish --provenance --access public
           fi
+        # Trusted publishing is used when it's configured on npmjs.com; the token is a fallback.
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
